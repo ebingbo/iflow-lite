@@ -1,76 +1,97 @@
+<script setup lang="ts">
+const { data: page } = await useAsyncData('index', () => queryCollection('index').first())
+
+const title = page.value?.seo?.title || page.value?.title
+const description = page.value?.seo?.description || page.value?.description
+
+useSeoMeta({
+  titleTemplate: '',
+  title,
+  ogTitle: title,
+  description,
+  ogDescription: description
+})
+</script>
+
 <template>
-  <div>
+  <div v-if="page">
     <UPageHero
-      title="Nuxt Starter Template"
-      description="A production-ready starter template powered by Nuxt UI. Build beautiful, accessible, and performant applications in minutes, not hours."
-      :links="[{
-        label: 'Get started',
-        to: 'https://ui.nuxt.com/docs/getting-started/installation/nuxt',
-        target: '_blank',
-        trailingIcon: 'i-lucide-arrow-right',
-        size: 'xl'
-      }, {
-        label: 'Use this template',
-        to: 'https://github.com/nuxt-ui-templates/starter',
-        target: '_blank',
-        icon: 'i-simple-icons-github',
-        size: 'xl',
-        color: 'neutral',
-        variant: 'subtle'
-      }]"
-    />
+      :title="page.title"
+      :description="page.description"
+      :links="page.hero.links"
+    >
+      <template #top>
+        <HeroBackground />
+      </template>
+
+      <template #title>
+        <MDC
+          :value="page.title"
+          unwrap="p"
+        />
+      </template>
+
+      <PromotionalVideo />
+    </UPageHero>
 
     <UPageSection
-      id="features"
-      title="Everything you need to build modern Nuxt apps"
-      description="Start with a solid foundation. This template includes all the essentials for building production-ready applications with Nuxt UI's powerful component system."
-      :features="[{
-        icon: 'i-lucide-rocket',
-        title: 'Production-ready from day one',
-        description: 'Pre-configured with TypeScript, ESLint, Tailwind CSS, and all the best practices. Focus on building features, not setting up tooling.'
-      }, {
-        icon: 'i-lucide-palette',
-        title: 'Beautiful by default',
-        description: 'Leveraging Nuxt UI\'s design system with automatic dark mode, consistent spacing, and polished components that look great out of the box.'
-      }, {
-        icon: 'i-lucide-zap',
-        title: 'Lightning fast',
-        description: 'Optimized for performance with SSR/SSG support, automatic code splitting, and edge-ready deployment. Your users will love the speed.'
-      }, {
-        icon: 'i-lucide-blocks',
-        title: '100+ components included',
-        description: 'Access Nuxt UI\'s comprehensive component library. From forms to navigation, everything is accessible, responsive, and customizable.'
-      }, {
-        icon: 'i-lucide-code-2',
-        title: 'Developer experience first',
-        description: 'Auto-imports, hot module replacement, and TypeScript support. Write less boilerplate and ship more features.'
-      }, {
-        icon: 'i-lucide-shield-check',
-        title: 'Built for scale',
-        description: 'Enterprise-ready architecture with proper error handling, SEO optimization, and security best practices built-in.'
-      }]"
-    />
-
-    <UPageSection>
-      <UPageCTA
-        title="Ready to build your next Nuxt app?"
-        description="Join thousands of developers building with Nuxt and Nuxt UI. Get this template and start shipping today."
-        variant="subtle"
-        :links="[{
-          label: 'Start building',
-          to: 'https://ui.nuxt.com/docs/getting-started/installation/nuxt',
-          target: '_blank',
-          trailingIcon: 'i-lucide-arrow-right',
-          color: 'neutral'
-        }, {
-          label: 'View on GitHub',
-          to: 'https://github.com/nuxt-ui-templates/starter',
-          target: '_blank',
-          icon: 'i-simple-icons-github',
-          color: 'neutral',
-          variant: 'outline'
-        }]"
-      />
+      v-for="(section, index) in page.sections"
+      :key="index"
+      :title="section.title"
+      :description="section.description"
+      :orientation="section.orientation"
+      :reverse="section.reverse"
+      :features="section.features"
+    >
+      <ImagePlaceholder />
     </UPageSection>
+
+    <UPageSection
+      :title="page.features.title"
+      :description="page.features.description"
+    >
+      <UPageGrid>
+        <UPageCard
+          v-for="(item, index) in page.features.items"
+          :key="index"
+          v-bind="item"
+          spotlight
+        />
+      </UPageGrid>
+    </UPageSection>
+
+    <UPageSection
+      id="testimonials"
+      :headline="page.testimonials.headline"
+      :title="page.testimonials.title"
+      :description="page.testimonials.description"
+    >
+      <UPageColumns class="xl:columns-4">
+        <UPageCard
+          v-for="(testimonial, index) in page.testimonials.items"
+          :key="index"
+          variant="subtle"
+          :description="testimonial.quote"
+          :ui="{ description: 'before:content-[open-quote] after:content-[close-quote]' }"
+        >
+          <template #footer>
+            <UUser
+              v-bind="testimonial.user"
+              size="lg"
+            />
+          </template>
+        </UPageCard>
+      </UPageColumns>
+    </UPageSection>
+
+    <USeparator />
+
+    <UPageCTA
+      v-bind="page.cta"
+      variant="naked"
+      class="overflow-hidden"
+    >
+      <LazyStarsBg />
+    </UPageCTA>
   </div>
 </template>

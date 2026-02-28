@@ -4,10 +4,7 @@
     :modal="false"
     :items="[{
       label: 'Starter',
-      to: 'https://starter-template.nuxt.dev/',
-      color: 'primary',
-      checked: true,
-      type: 'checkbox'
+      to: 'https://starter-template.nuxt.dev/'
     }, {
       label: 'Landing',
       to: 'https://landing-template.nuxt.dev/'
@@ -16,7 +13,10 @@
       to: 'https://docs-template.nuxt.dev/'
     }, {
       label: 'SaaS',
-      to: 'https://saas-template.nuxt.dev/'
+      to: 'https://saas-template.nuxt.dev/',
+      color: 'primary',
+      checked: true,
+      type: 'checkbox'
     }, {
       label: 'Dashboard',
       to: 'https://dashboard-template.nuxt.dev/'
@@ -35,7 +35,7 @@
     size="xs"
   >
     <UButton
-      label="Starter"
+      label="SaaS"
       variant="subtle"
       trailing-icon="i-lucide-chevron-down"
       size="xs"
