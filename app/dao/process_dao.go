@@ -1,0 +1,47 @@
+package dao
+
+import (
+	"context"
+	"errors"
+
+	"iflow-lite/core/bootstrap/client"
+	"iflow-lite/core/bootstrap/logger"
+	"iflow-lite/type/model"
+
+	"gorm.io/gorm"
+)
+
+type ProcessDao struct{}
+
+func NewProcessDao() *ProcessDao {
+	return &ProcessDao{}
+}
+
+func (*ProcessDao) ProcessGet(ctx context.Context, id uint64) (*model.Process, error) {
+	m := &model.Process{ID: id}
+	if err := client.MysqlDB.WithContext(ctx).First(m).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		logger.ServiceLogger.WithContext(ctx).Errorf("process get error: %+v", err)
+		return nil, err
+	}
+	return m, nil
+}
+
+func (*ProcessDao) ProcessAdd(ctx context.Context, m *model.Process) (*model.Process, error) {
+	if err := client.MysqlDB.WithContext(ctx).Create(m).Error; err != nil {
+		logger.ServiceLogger.WithContext(ctx).Errorf("process add error: %+v", err)
+		return nil, err
+	}
+	return m, nil
+}
+
+func (*ProcessDao) ProcessList(ctx context.Context) ([]model.Process, error) {
+	var items []model.Process
+	if err := client.MysqlDB.WithContext(ctx).Find(&items).Error; err != nil {
+		logger.ServiceLogger.WithContext(ctx).Errorf("process list error: %+v", err)
+		return nil, err
+	}
+	return items, nil
+}
