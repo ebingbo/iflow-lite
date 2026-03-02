@@ -9,7 +9,7 @@ type Execution struct {
 	ProcessName  string    `gorm:"column:process_name;default:''" json:"process_name" example:"xxx"`
 	BusinessKey  string    `gorm:"column:business_key;default:''" json:"business_key" example:"1"`
 	BusinessType string    `gorm:"column:business_type;default:''" json:"business_type" example:"order"`
-	Status       *uint8    `gorm:"column:status;default:1" json:"status" example:"1"`
+	Status       string    `gorm:"column:status;default:'running'" json:"status" example:"1"`
 	Progress     float64   `gorm:"column:progress;default:0" json:"progress" example:"1"`
 	CreatedBy    string    `gorm:"column:created_by;default:''" json:"created_by" example:"1"`
 	CreatedAt    time.Time `gorm:"column:created_at;autoCreateTime;" json:"created_at" example:"2020-10-11T10:10:10"` // 创建时间

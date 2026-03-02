@@ -11,6 +11,8 @@ import (
 	"gorm.io/gorm"
 )
 
+var DefaultExecutionDao = NewExecutionDao()
+
 type ExecutionDao struct{}
 
 func NewExecutionDao() *ExecutionDao {
@@ -35,11 +37,28 @@ func (*ExecutionDao) ExecutionAdd(ctx context.Context, m *model.Execution) (*mod
 	return m, nil
 }
 
-func (*ExecutionDao) ExecutionList(ctx context.Context) ([]model.Execution, error) {
-	var items []model.Execution
+func (*ExecutionDao) ExecutionList(ctx context.Context) ([]*model.Execution, error) {
+	var items []*model.Execution
 	if err := client.MysqlDB.WithContext(ctx).Find(&items).Error; err != nil {
 		logger.ServiceLogger.WithContext(ctx).Errorf("execution list error: %+v", err)
 		return nil, err
 	}
 	return items, nil
+}
+
+func (*ExecutionDao) ExecutionQuery(ctx context.Context, cond map[string]interface{}, page, size int) ([]*model.Execution, int64, error) {
+	var items = make([]*model.Execution, 0)
+	var total int64
+	db := client.MysqlDB.WithContext(ctx).Model(&model.Execution{}).Where(cond)
+	if err := db.Count(&total).Error; err != nil {
+		logger.ServiceLogger.WithContext(ctx).Errorf("execution count error: %+v", err)
+		return nil, 0, err
+	}
+	if total > 0 {
+		if err := db.Offset((page - 1) * size).Limit(size).Find(&items).Error; err != nil {
+			logger.ServiceLogger.WithContext(ctx).Errorf("execution query error: %+v", err)
+			return nil, 0, err
+		}
+	}
+	return items, total, nil
 }

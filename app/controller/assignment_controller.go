@@ -8,13 +8,13 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func UserGet(ctx *gin.Context) {
-	var in input.UserGetInput
+func AssignmentGet(ctx *gin.Context) {
+	var in input.AssignmentGetInput
 	if err := ctx.ShouldBindQuery(&in); err != nil {
 		http.JsonResponse(ctx, err)
 		return
 	}
-	result, err := service.DefaultUserService.UserGet(ctx.Request.Context(), &in)
+	result, err := service.DefaultAssignmentService.AssignmentGet(ctx.Request.Context(), &in)
 	if err != nil {
 		http.JsonResponse(ctx, err)
 		return
@@ -22,13 +22,13 @@ func UserGet(ctx *gin.Context) {
 	http.JsonResponse(ctx, result)
 }
 
-func UserAdd(ctx *gin.Context) {
-	var in input.UserAddInput
+func AssignmentQuery(ctx *gin.Context) {
+	var in input.AssignmentQueryInput
 	if err := ctx.ShouldBindJSON(&in); err != nil {
 		http.JsonResponse(ctx, err)
 		return
 	}
-	result, err := service.DefaultUserService.UserAdd(ctx.Request.Context(), &in)
+	result, err := service.DefaultAssignmentService.AssignmentQuery(ctx.Request.Context(), &in)
 	if err != nil {
 		http.JsonResponse(ctx, err)
 		return
@@ -36,13 +36,13 @@ func UserAdd(ctx *gin.Context) {
 	http.JsonResponse(ctx, result)
 }
 
-func UserLogin(ctx *gin.Context) {
-	var in input.UserLoginInput
+func AssignmentAdd(ctx *gin.Context) {
+	var in input.AssignmentAddInput
 	if err := ctx.ShouldBindJSON(&in); err != nil {
 		http.JsonResponse(ctx, err)
 		return
 	}
-	result, err := service.DefaultUserService.UserLogin(ctx.Request.Context(), &in)
+	result, err := service.DefaultAssignmentService.AssignmentAdd(ctx.Request.Context(), &in)
 	if err != nil {
 		http.JsonResponse(ctx, err)
 		return

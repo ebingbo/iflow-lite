@@ -11,6 +11,8 @@ import (
 	"gorm.io/gorm"
 )
 
+var DefaultTransitionDao = NewTransitionDao()
+
 type TransitionDao struct{}
 
 func NewTransitionDao() *TransitionDao {
@@ -35,9 +37,9 @@ func (*TransitionDao) TransitionAdd(ctx context.Context, m *model.Transition) (*
 	return m, nil
 }
 
-func (*TransitionDao) TransitionList(ctx context.Context) ([]model.Transition, error) {
-	var items []model.Transition
-	if err := client.MysqlDB.WithContext(ctx).Find(&items).Error; err != nil {
+func (*TransitionDao) TransitionList(ctx context.Context, cond map[string]interface{}) ([]*model.Transition, error) {
+	var items = make([]*model.Transition, 0)
+	if err := client.MysqlDB.WithContext(ctx).Model(model.Transition{}).Where(cond).Find(&items).Error; err != nil {
 		logger.ServiceLogger.WithContext(ctx).Errorf("transition list error: %+v", err)
 		return nil, err
 	}

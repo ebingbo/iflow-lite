@@ -11,6 +11,8 @@ import (
 	"gorm.io/gorm"
 )
 
+var DefaultProcessDao = NewProcessDao()
+
 type ProcessDao struct{}
 
 func NewProcessDao() *ProcessDao {
@@ -29,6 +31,18 @@ func (*ProcessDao) ProcessGet(ctx context.Context, id uint64) (*model.Process, e
 	return m, nil
 }
 
+func (*ProcessDao) ProcessTake(ctx context.Context, code string) (*model.Process, error) {
+	m := &model.Process{}
+	if err := client.MysqlDB.WithContext(ctx).Model(m).Where("code = ?", code).Take(m).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		logger.ServiceLogger.WithContext(ctx).Errorf("process take error: %+v", err)
+		return nil, err
+	}
+	return m, nil
+}
+
 func (*ProcessDao) ProcessAdd(ctx context.Context, m *model.Process) (*model.Process, error) {
 	if err := client.MysqlDB.WithContext(ctx).Create(m).Error; err != nil {
 		logger.ServiceLogger.WithContext(ctx).Errorf("process add error: %+v", err)
@@ -37,11 +51,28 @@ func (*ProcessDao) ProcessAdd(ctx context.Context, m *model.Process) (*model.Pro
 	return m, nil
 }
 
-func (*ProcessDao) ProcessList(ctx context.Context) ([]model.Process, error) {
-	var items []model.Process
+func (*ProcessDao) ProcessList(ctx context.Context) ([]*model.Process, error) {
+	var items []*model.Process
 	if err := client.MysqlDB.WithContext(ctx).Find(&items).Error; err != nil {
 		logger.ServiceLogger.WithContext(ctx).Errorf("process list error: %+v", err)
 		return nil, err
 	}
 	return items, nil
+}
+
+func (*ProcessDao) ProcessQuery(ctx context.Context, cond map[string]interface{}, page, size int) ([]*model.Process, int64, error) {
+	var items []*model.Process
+	var total int64
+	db := client.MysqlDB.WithContext(ctx).Model(&model.Process{}).Where(cond)
+	if err := db.Count(&total).Error; err != nil {
+		logger.ServiceLogger.WithContext(ctx).Errorf("process count error: %+v", err)
+		return nil, 0, err
+	}
+	if total > 0 {
+		if err := db.Offset((page - 1) * size).Limit(size).Find(&items).Error; err != nil {
+			logger.ServiceLogger.WithContext(ctx).Errorf("process query error: %+v", err)
+			return nil, 0, err
+		}
+	}
+	return items, total, nil
 }

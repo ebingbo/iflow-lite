@@ -4,6 +4,9 @@ type (
 	ProcessGetInput struct {
 		ID uint64 `form:"id"`
 	}
+	ProcessTakeInput struct {
+		Code string `form:"code"`
+	}
 	ProcessAddInput struct {
 		Code        string `json:"code" form:"code" binding:"required" example:"product-add-code"`
 		Name        string `json:"name" form:"name" binding:"required" example:"product-a"`

@@ -11,8 +11,8 @@ type Node struct {
 	Code        string    `gorm:"column:code;default:'';unique" json:"code" example:"1"`
 	Type        string    `gorm:"column:type;default:'start'" json:"type" example:"start"`
 	Description string    `gorm:"column:description;default:''" json:"description" example:"1"`
-	CreateBy    uint64    `gorm:"column:create_by;default:0" json:"create_by" example:"1"`
-	UpdateBy    uint64    `gorm:"column:update_by;default:0" json:"update_by" example:"1"`
+	CreatedBy   uint64    `gorm:"column:created_by;default:0" json:"created_by" example:"1"`
+	UpdatedBy   uint64    `gorm:"column:updated_by;default:0" json:"updated_by" example:"1"`
 	CreatedAt   time.Time `gorm:"column:created_at;autoCreateTime;" json:"created_at" example:"2020-10-11T10:10:10"` // 创建时间
 	UpdatedAt   time.Time `gorm:"column:updated_at;autoUpdateTime;" json:"updated_at" example:"2020-10-11T10:10:10"` // 更新时间
 }

@@ -1,6 +1,8 @@
 package controller
 
 import (
+	"fmt"
+
 	"iflow-lite/core/http"
 	"iflow-lite/service"
 	"iflow-lite/type/input"
@@ -8,39 +10,28 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func ProcessGet(ctx *gin.Context) {
-	var in input.ProcessGetInput
+func NodeGet(ctx *gin.Context) {
+	var in input.NodeGetInput
 	if err := ctx.ShouldBindQuery(&in); err != nil {
 		http.JsonResponse(ctx, err)
 		return
 	}
-	result, err := service.DefaultProcessService.ProcessGet(ctx.Request.Context(), &in)
+	result, err := service.DefaultNodeService.NodeGet(ctx.Request.Context(), &in)
 	if err != nil {
 		http.JsonResponse(ctx, err)
 		return
 	}
+	fmt.Println(ctx.Get("userID"))
 	http.JsonResponse(ctx, result)
 }
-func ProcessTake(ctx *gin.Context) {
-	var in input.ProcessTakeInput
-	if err := ctx.ShouldBindQuery(&in); err != nil {
-		http.JsonResponse(ctx, err)
-		return
-	}
-	result, err := service.DefaultProcessService.ProcessTake(ctx.Request.Context(), &in)
-	if err != nil {
-		http.JsonResponse(ctx, err)
-		return
-	}
-	http.JsonResponse(ctx, result)
-}
-func ProcessAdd(ctx *gin.Context) {
-	var in input.ProcessAddInput
+
+func NodeAdd(ctx *gin.Context) {
+	var in input.NodeAddInput
 	if err := ctx.ShouldBindJSON(&in); err != nil {
 		http.JsonResponse(ctx, err)
 		return
 	}
-	result, err := service.DefaultProcessService.ProcessAdd(ctx.Request.Context(), &in)
+	result, err := service.DefaultNodeService.NodeAdd(ctx.Request.Context(), &in)
 	if err != nil {
 		http.JsonResponse(ctx, err)
 		return
@@ -48,13 +39,27 @@ func ProcessAdd(ctx *gin.Context) {
 	http.JsonResponse(ctx, result)
 }
 
-func ProcessQuery(ctx *gin.Context) {
-	var in input.ProcessQueryInput
+func NodeQuery(ctx *gin.Context) {
+	var in input.NodeQueryInput
 	if err := ctx.ShouldBindJSON(&in); err != nil {
 		http.JsonResponse(ctx, err)
 		return
 	}
-	result, err := service.DefaultProcessService.ProcessQuery(ctx.Request.Context(), &in)
+	result, err := service.DefaultNodeService.NodeQuery(ctx.Request.Context(), &in)
+	if err != nil {
+		http.JsonResponse(ctx, err)
+		return
+	}
+	http.JsonResponse(ctx, result)
+}
+
+func NodeList(ctx *gin.Context) {
+	var in input.NodeListInput
+	if err := ctx.ShouldBindJSON(&in); err != nil {
+		http.JsonResponse(ctx, err)
+		return
+	}
+	result, err := service.DefaultNodeService.NodeList(ctx.Request.Context(), &in)
 	if err != nil {
 		http.JsonResponse(ctx, err)
 		return

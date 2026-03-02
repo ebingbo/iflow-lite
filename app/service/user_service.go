@@ -13,9 +13,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-var (
-	userDao = dao.NewUserDao()
-)
+var DefaultUserService = NewUserService()
 
 type UserService struct {
 }
@@ -25,7 +23,7 @@ func NewUserService() *UserService {
 }
 
 func (this *UserService) UserGet(ctx context.Context, in *input.UserGetInput) (interface{}, error) {
-	return userDao.UserGet(ctx, in.ID)
+	return dao.DefaultUserDao.UserGet(ctx, in.ID)
 }
 
 func (this *UserService) UserAdd(ctx context.Context, in *input.UserAddInput) (interface{}, error) {
@@ -40,14 +38,14 @@ func (this *UserService) UserAdd(ctx context.Context, in *input.UserAddInput) (i
 		Email:    in.Email,
 		Password: string(pwd),
 	}
-	if err := userDao.UserAdd(ctx, m); err != nil {
+	if err := dao.DefaultUserDao.UserAdd(ctx, m); err != nil {
 		return nil, err
 	}
 	return m, nil
 }
 
 func (this *UserService) UserLogin(ctx context.Context, in *input.UserLoginInput) (interface{}, error) {
-	user, err := userDao.UserTake(ctx, in.Email)
+	user, err := dao.DefaultUserDao.UserTake(ctx, in.Email)
 	if err != nil {
 		return nil, err
 	}

@@ -11,6 +11,8 @@ import (
 	"gorm.io/gorm"
 )
 
+var DefaultAssignmentDao = NewAssignmentDao()
+
 type AssignmentDao struct{}
 
 func NewAssignmentDao() *AssignmentDao {
@@ -36,11 +38,28 @@ func (*AssignmentDao) AssignmentAdd(ctx context.Context, m *model.Assignment) (*
 	return m, nil
 }
 
-func (*AssignmentDao) AssignmentList(ctx context.Context) ([]model.Assignment, error) {
-	var items []model.Assignment
+func (*AssignmentDao) AssignmentList(ctx context.Context) ([]*model.Assignment, error) {
+	var items []*model.Assignment
 	if err := client.MysqlDB.WithContext(ctx).Find(&items).Error; err != nil {
 		logger.ServiceLogger.WithContext(ctx).Errorf("assignment list error: %+v", err)
 		return nil, err
 	}
 	return items, nil
+}
+
+func (*AssignmentDao) AssignmentQuery(ctx context.Context, cond map[string]interface{}, page, size int) ([]*model.Assignment, int64, error) {
+	var items = make([]*model.Assignment, 0)
+	var total int64
+	db := client.MysqlDB.WithContext(ctx).Model(&model.Assignment{}).Where(cond)
+	if err := db.Count(&total).Error; err != nil {
+		logger.ServiceLogger.WithContext(ctx).Errorf("assignment count error: %+v", err)
+		return nil, 0, err
+	}
+	if total > 0 {
+		if err := db.Offset((page - 1) * size).Limit(size).Find(&items).Error; err != nil {
+			logger.ServiceLogger.WithContext(ctx).Errorf("assignment query error: %+v", err)
+			return nil, 0, err
+		}
+	}
+	return items, total, nil
 }

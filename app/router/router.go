@@ -9,4 +9,10 @@ func Init(r *gin.Engine) {
 	MetricRouterInit(r)
 	UserRouterInit(r)
 	ProcessRouterInit(r)
+	ExecutionRouterInit(r)
+	AssignmentRouterInit(r)
+	NodeRouterInit(r)
+	TransitionRouterInit(r)
+	TaskRouterInit(r)
+	LogRouterInit(r)
 }

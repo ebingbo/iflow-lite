@@ -4,6 +4,13 @@ create database if not exists iflow_db character set utf8mb4 collate utf8mb4_uni
 -- ===============================================
 
 use iflow_db;
+truncate table process;
+truncate table node;
+truncate table transition;
+truncate table execution;
+truncate table task;
+truncate table assignment;
+truncate table log;
 
 -- 角色表
 create table if not exists role

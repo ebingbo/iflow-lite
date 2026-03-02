@@ -8,13 +8,13 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func UserGet(ctx *gin.Context) {
-	var in input.UserGetInput
+func LogGet(ctx *gin.Context) {
+	var in input.LogGetInput
 	if err := ctx.ShouldBindQuery(&in); err != nil {
 		http.JsonResponse(ctx, err)
 		return
 	}
-	result, err := service.DefaultUserService.UserGet(ctx.Request.Context(), &in)
+	result, err := service.DefaultLogService.LogGet(ctx.Request.Context(), &in)
 	if err != nil {
 		http.JsonResponse(ctx, err)
 		return
@@ -22,13 +22,13 @@ func UserGet(ctx *gin.Context) {
 	http.JsonResponse(ctx, result)
 }
 
-func UserAdd(ctx *gin.Context) {
-	var in input.UserAddInput
+func LogAdd(ctx *gin.Context) {
+	var in input.LogAddInput
 	if err := ctx.ShouldBindJSON(&in); err != nil {
 		http.JsonResponse(ctx, err)
 		return
 	}
-	result, err := service.DefaultUserService.UserAdd(ctx.Request.Context(), &in)
+	result, err := service.DefaultLogService.LogAdd(ctx.Request.Context(), &in)
 	if err != nil {
 		http.JsonResponse(ctx, err)
 		return
@@ -36,13 +36,13 @@ func UserAdd(ctx *gin.Context) {
 	http.JsonResponse(ctx, result)
 }
 
-func UserLogin(ctx *gin.Context) {
-	var in input.UserLoginInput
+func LogQuery(ctx *gin.Context) {
+	var in input.LogQueryInput
 	if err := ctx.ShouldBindJSON(&in); err != nil {
 		http.JsonResponse(ctx, err)
 		return
 	}
-	result, err := service.DefaultUserService.UserLogin(ctx.Request.Context(), &in)
+	result, err := service.DefaultLogService.LogQuery(ctx.Request.Context(), &in)
 	if err != nil {
 		http.JsonResponse(ctx, err)
 		return

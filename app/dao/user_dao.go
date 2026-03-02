@@ -12,6 +12,8 @@ import (
 	"gorm.io/gorm"
 )
 
+var DefaultUserDao = NewUserDao()
+
 type UserDao struct{}
 
 func NewUserDao() *UserDao {
@@ -36,8 +38,8 @@ func (*UserDao) UserAdd(ctx context.Context, m *model.User) error {
 	return nil
 }
 
-func (*UserDao) UserList(ctx context.Context) ([]model.User, error) {
-	var items []model.User
+func (*UserDao) UserList(ctx context.Context) ([]*model.User, error) {
+	var items []*model.User
 	if err := client.MysqlDB.WithContext(ctx).Find(&items).Error; err != nil {
 		logger.ServiceLogger.WithContext(ctx).Errorf("user list error: %+v", err)
 		return nil, err
@@ -45,7 +47,16 @@ func (*UserDao) UserList(ctx context.Context) ([]model.User, error) {
 	return items, nil
 }
 
-func (*UserDao) UserQuery(ctx context.Context, input *input.UserQueryInput) (items []model.User, total int64, err error) {
+func (*UserDao) UserListByIDs(ctx context.Context, ids []uint64) ([]*model.User, error) {
+	var items []*model.User
+	if err := client.MysqlDB.WithContext(ctx).Model(&model.User{}).Where("id IN ?", ids).Find(&items).Error; err != nil {
+		logger.ServiceLogger.WithContext(ctx).Errorf("user list by ids error: %+v", err)
+		return nil, err
+	}
+	return items, nil
+}
+
+func (*UserDao) UserQuery(ctx context.Context, input *input.UserQueryInput) (items []*model.User, total int64, err error) {
 	offset := (input.Page - 1) * input.Size
 	tx := client.MysqlDB.WithContext(ctx).Model(&model.User{})
 	// 动态条件

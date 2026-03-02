@@ -9,5 +9,7 @@ import (
 func ProcessRouterInit(e *gin.Engine) {
 	group := e.Group("/api/process")
 	group.GET("/get", controller.ProcessGet)
+	group.GET("/take", controller.ProcessTake)
 	group.POST("/add", controller.ProcessAdd)
+	group.POST("/query", controller.ProcessQuery)
 }
