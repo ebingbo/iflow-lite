@@ -45,3 +45,21 @@ func (*TransitionDao) TransitionList(ctx context.Context, cond map[string]interf
 	}
 	return items, nil
 }
+
+func (*TransitionDao) FromNodeIDListWithTransaction(ctx context.Context, tx *gorm.DB, processID uint64, toNodeID uint64) ([]uint64, error) {
+	var fromNodeIDs []uint64
+	if err := tx.Model(&model.Transition{}).Where("process_id = ? AND to_node_id = ?", processID, toNodeID).Pluck("from_node_id", &fromNodeIDs).Error; err != nil {
+		logger.ServiceLogger.WithContext(ctx).Errorf("from node id list error: %+v", err)
+		return nil, err
+	}
+	return fromNodeIDs, nil
+}
+
+func (*TransitionDao) ToNodeIDListWithTransaction(ctx context.Context, tx *gorm.DB, processID uint64, fromNodeID uint64) ([]uint64, error) {
+	var toNodeIDs []uint64
+	if err := tx.Model(&model.Transition{}).Where("process_id = ? AND from_node_id = ?", processID, fromNodeID).Pluck("to_node_id", &toNodeIDs).Error; err != nil {
+		logger.ServiceLogger.WithContext(ctx).Errorf("to node id list error: %+v", err)
+		return nil, err
+	}
+	return toNodeIDs, nil
+}

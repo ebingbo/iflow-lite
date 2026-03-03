@@ -6,6 +6,7 @@ import (
 
 	"iflow-lite/core/bootstrap/client"
 	"iflow-lite/core/bootstrap/logger"
+	"iflow-lite/core/constant"
 	"iflow-lite/type/model"
 
 	"gorm.io/gorm"
@@ -18,6 +19,7 @@ type NodeDao struct{}
 func NewNodeDao() *NodeDao {
 	return &NodeDao{}
 }
+
 func (*NodeDao) NodeGet(ctx context.Context, id uint64) (*model.Node, error) {
 	m := &model.Node{ID: id}
 	if err := client.MysqlDB.WithContext(ctx).First(m).Error; err != nil {
@@ -29,6 +31,22 @@ func (*NodeDao) NodeGet(ctx context.Context, id uint64) (*model.Node, error) {
 	}
 	return m, nil
 }
+
+func (*NodeDao) FirstNodeTakeWithTransaction(ctx context.Context, tx *gorm.DB, processID uint64) (*model.Node, error) {
+	m := &model.Node{}
+	if err := tx.Model(m).
+		Where("process_id = ?", processID).
+		Where("type = ?", constant.NodeTypeStart).
+		Take(m).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		logger.ServiceLogger.WithContext(ctx).Errorf("first node take error: %+v", err)
+		return nil, err
+	}
+	return m, nil
+}
+
 func (*NodeDao) NodeAdd(ctx context.Context, m *model.Node) (*model.Node, error) {
 	if err := client.MysqlDB.WithContext(ctx).Create(m).Error; err != nil {
 		logger.ServiceLogger.WithContext(ctx).Errorf("node add error: %+v", err)
@@ -40,6 +58,15 @@ func (*NodeDao) NodeAdd(ctx context.Context, m *model.Node) (*model.Node, error)
 func (*NodeDao) NodeList(ctx context.Context, cond map[string]interface{}) ([]*model.Node, error) {
 	var items []*model.Node
 	if err := client.MysqlDB.WithContext(ctx).Model(&model.Node{}).Where(cond).Find(&items).Error; err != nil {
+		logger.ServiceLogger.WithContext(ctx).Errorf("node list error: %+v", err)
+		return nil, err
+	}
+	return items, nil
+}
+
+func (*NodeDao) NodeListWithTransaction(ctx context.Context, tx *gorm.DB, cond map[string]interface{}) ([]*model.Node, error) {
+	var items []*model.Node
+	if err := tx.Model(&model.Node{}).Where(cond).Find(&items).Error; err != nil {
 		logger.ServiceLogger.WithContext(ctx).Errorf("node list error: %+v", err)
 		return nil, err
 	}
@@ -61,4 +88,13 @@ func (*NodeDao) NodeQuery(ctx context.Context, cond map[string]interface{}, page
 		}
 	}
 	return items, total, nil
+}
+
+func (*NodeDao) NodeCountWithTransaction(ctx context.Context, tx *gorm.DB, cond map[string]interface{}) (int64, error) {
+	var count int64
+	if err := tx.Model(&model.Node{}).Where(cond).Count(&count).Error; err != nil {
+		logger.ServiceLogger.WithContext(ctx).Errorf("node count transaction error: %+v", err)
+		return 0, err
+	}
+	return count, nil
 }

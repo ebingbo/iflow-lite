@@ -116,6 +116,8 @@ create table if not exists execution
     status        varchar(20)   not null default 'running' comment '流程实例状态：running, completed, terminated',
     progress      decimal(5, 2) not null default 0.00 comment '流程进度百分比，0~100',
     created_by    varchar(100)  not null default '' comment '流程发起人ID',
+    started_at    datetime      null comment '开始时间',
+    ended_at      datetime      null comment '结束时间',
     created_at    datetime      not null default current_timestamp comment '创建时间',
     updated_at    datetime      not null default current_timestamp on update current_timestamp comment '更新时间',
     index idx_process_code (process_code)

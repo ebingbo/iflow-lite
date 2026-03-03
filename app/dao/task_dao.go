@@ -6,6 +6,7 @@ import (
 
 	"iflow-lite/core/bootstrap/client"
 	"iflow-lite/core/bootstrap/logger"
+	"iflow-lite/core/constant"
 	"iflow-lite/type/model"
 
 	"gorm.io/gorm"
@@ -37,6 +38,14 @@ func (*TaskDao) TaskAdd(ctx context.Context, m *model.Task) (*model.Task, error)
 	return m, nil
 }
 
+func (*TaskDao) TaskAddWithTransaction(ctx context.Context, m *model.Task) (*model.Task, error) {
+	if err := client.MysqlDB.WithContext(ctx).Create(m).Error; err != nil {
+		logger.ServiceLogger.WithContext(ctx).Errorf("task add with transaction error: %+v", err)
+		return nil, err
+	}
+	return m, nil
+}
+
 func (*TaskDao) TaskList(ctx context.Context) ([]*model.Task, error) {
 	var items []*model.Task
 	if err := client.MysqlDB.WithContext(ctx).Find(&items).Error; err != nil {
@@ -61,4 +70,22 @@ func (*TaskDao) TaskQuery(ctx context.Context, cond map[string]interface{}, page
 		}
 	}
 	return items, total, nil
+}
+
+func (*TaskDao) TaskCompleted(ctx context.Context, tx *gorm.DB, executionID uint64, nodeIDs []uint64) (bool, error) {
+	var count int64
+	if err := tx.Model(&model.Task{}).Where("execution_id = ? AND node_id IN ? AND status NOT IN ?", executionID, nodeIDs, []string{constant.TaskStatusCompleted, constant.TaskStatusSkipped}).Count(&count).Error; err != nil {
+		logger.ServiceLogger.WithContext(ctx).Errorf("task completed error: %+v", err)
+		return false, err
+	}
+	return count == 0, nil
+}
+
+func (*TaskDao) TaskCountWithTransaction(ctx context.Context, tx *gorm.DB, cond map[string]interface{}) (int64, error) {
+	var count int64
+	if err := tx.Model(&model.Task{}).Where(cond).Count(&count).Error; err != nil {
+		logger.ServiceLogger.WithContext(ctx).Errorf("task count with transaction error: %+v", err)
+		return 0, err
+	}
+	return count, nil
 }

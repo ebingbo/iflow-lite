@@ -37,6 +37,30 @@ func (*ExecutionDao) ExecutionAdd(ctx context.Context, m *model.Execution) (*mod
 	return m, nil
 }
 
+func (*ExecutionDao) ExecutionAddWithTransaction(ctx context.Context, tx *gorm.DB, m *model.Execution) (*model.Execution, error) {
+	if err := tx.Create(m).Error; err != nil {
+		logger.ServiceLogger.WithContext(ctx).Errorf("execution add error: %+v", err)
+		return nil, err
+	}
+	return m, nil
+}
+
+func (*ExecutionDao) ExecutionUpdate(ctx context.Context, m *model.Execution) error {
+	if err := client.MysqlDB.WithContext(ctx).Save(m).Error; err != nil {
+		logger.ServiceLogger.WithContext(ctx).Errorf("execution update error: %+v", err)
+		return err
+	}
+	return nil
+}
+
+func (*ExecutionDao) ExecutionUpdateWithTransaction(ctx context.Context, tx *gorm.DB, m *model.Execution) error {
+	if err := tx.Save(m).Error; err != nil {
+		logger.ServiceLogger.WithContext(ctx).Errorf("execution update error: %+v", err)
+		return err
+	}
+	return nil
+}
+
 func (*ExecutionDao) ExecutionList(ctx context.Context) ([]*model.Execution, error) {
 	var items []*model.Execution
 	if err := client.MysqlDB.WithContext(ctx).Find(&items).Error; err != nil {

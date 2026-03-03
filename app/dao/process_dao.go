@@ -43,6 +43,18 @@ func (*ProcessDao) ProcessTake(ctx context.Context, code string) (*model.Process
 	return m, nil
 }
 
+func (*ProcessDao) ProcessTakeWithTransaction(ctx context.Context, tx *gorm.DB, code string) (*model.Process, error) {
+	m := &model.Process{}
+	if err := tx.Model(m).Where("code = ?", code).Take(m).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		logger.ServiceLogger.WithContext(ctx).Errorf("process take error: %+v", err)
+		return nil, err
+	}
+	return m, nil
+}
+
 func (*ProcessDao) ProcessAdd(ctx context.Context, m *model.Process) (*model.Process, error) {
 	if err := client.MysqlDB.WithContext(ctx).Create(m).Error; err != nil {
 		logger.ServiceLogger.WithContext(ctx).Errorf("process add error: %+v", err)

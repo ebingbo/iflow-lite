@@ -37,6 +37,14 @@ func (*LogDao) LogAdd(ctx context.Context, m *model.Log) (*model.Log, error) {
 	return m, nil
 }
 
+func (*LogDao) LogAddWithTransaction(ctx context.Context, tx *gorm.DB, m *model.Log) (*model.Log, error) {
+	if err := tx.Create(m).Error; err != nil {
+		logger.ServiceLogger.WithContext(ctx).Errorf("log add error: %+v", err)
+		return nil, err
+	}
+	return m, nil
+}
+
 func (*LogDao) LogList(ctx context.Context) ([]*model.Log, error) {
 	var items []*model.Log
 	if err := client.MysqlDB.WithContext(ctx).Find(&items).Error; err != nil {
