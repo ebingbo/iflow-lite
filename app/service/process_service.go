@@ -27,13 +27,13 @@ func (this *ProcessService) ProcessTake(ctx context.Context, in *input.ProcessTa
 	return dao.DefaultProcessDao.ProcessTake(ctx, in.Code)
 }
 func (this *ProcessService) ProcessAdd(ctx context.Context, in *input.ProcessAddInput) (interface{}, error) {
-	m := &model.Process{
-		Name:        in.Name,
-		Code:        in.Code,
-		Description: in.Description,
-		CreatedBy:   util.UIDWithContext(ctx),
-		UpdatedBy:   util.UIDWithContext(ctx),
-	}
+	m := model.NewProcessBuilder().
+		Name(in.Name).
+		Code(in.Code).
+		Description(in.Description).
+		CreatedBy(util.UIDWithContext(ctx)).
+		UpdatedBy(util.UIDWithContext(ctx)).
+		Build()
 	if _, err := dao.DefaultProcessDao.ProcessAdd(ctx, m); err != nil {
 		return nil, err
 	}

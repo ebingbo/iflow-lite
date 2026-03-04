@@ -32,6 +32,18 @@ func (*NodeDao) NodeGet(ctx context.Context, id uint64) (*model.Node, error) {
 	return m, nil
 }
 
+func (*NodeDao) NodeGetWithTransaction(ctx context.Context, tx *gorm.DB, id uint64) (*model.Node, error) {
+	m := &model.Node{ID: id}
+	if err := tx.WithContext(ctx).First(m).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		logger.ServiceLogger.WithContext(ctx).Errorf("node get error: %+v", err)
+		return nil, err
+	}
+	return m, nil
+}
+
 func (*NodeDao) FirstNodeTakeWithTransaction(ctx context.Context, tx *gorm.DB, processID uint64) (*model.Node, error) {
 	m := &model.Node{}
 	if err := tx.Model(m).

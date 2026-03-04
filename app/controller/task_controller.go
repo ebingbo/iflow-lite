@@ -49,3 +49,42 @@ func TaskQuery(ctx *gin.Context) {
 	}
 	http.JsonResponse(ctx, result)
 }
+
+func TaskComplete(ctx *gin.Context) {
+	var in input.TaskCompleteInput
+	if err := ctx.ShouldBindJSON(&in); err != nil {
+		http.JsonResponse(ctx, err)
+		return
+	}
+	if err := service.DefaultTaskService.TaskComplete(ctx.Request.Context(), &in); err != nil {
+		http.JsonResponse(ctx, err)
+		return
+	}
+	http.JsonResponse(ctx, nil)
+}
+
+func TaskSkip(ctx *gin.Context) {
+	var in input.TaskSkipInput
+	if err := ctx.ShouldBindJSON(&in); err != nil {
+		http.JsonResponse(ctx, err)
+		return
+	}
+	if err := service.DefaultTaskService.TaskSkip(ctx.Request.Context(), &in); err != nil {
+		http.JsonResponse(ctx, err)
+		return
+	}
+	http.JsonResponse(ctx, nil)
+}
+
+func TaskDelegate(ctx *gin.Context) {
+	var in input.TaskDelegateInput
+	if err := ctx.ShouldBindJSON(&in); err != nil {
+		http.JsonResponse(ctx, err)
+		return
+	}
+	if err := service.DefaultTaskService.TaskDelegate(ctx.Request.Context(), &in); err != nil {
+		http.JsonResponse(ctx, err)
+		return
+	}
+	http.JsonResponse(ctx, nil)
+}

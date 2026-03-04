@@ -33,11 +33,11 @@ func (this *UserService) UserAdd(ctx context.Context, in *input.UserAddInput) (i
 		return nil, err
 	}
 
-	m := &model.User{
-		Name:     in.Name,
-		Email:    in.Email,
-		Password: string(pwd),
-	}
+	m := model.NewUserBuilder().
+		Name(in.Name).
+		Email(in.Email).
+		Password(string(pwd)).
+		Build()
 	if err := dao.DefaultUserDao.UserAdd(ctx, m); err != nil {
 		return nil, err
 	}

@@ -11,4 +11,7 @@ func TaskRouterInit(e *gin.Engine) {
 	group.GET("/get", controller.TaskGet)
 	group.POST("/add", controller.TaskAdd)
 	group.POST("/query", controller.TaskQuery)
+	group.POST("/complete", controller.TaskComplete)
+	group.POST("/skip", controller.TaskSkip)
+	group.POST("/delegate", controller.TaskDelegate)
 }

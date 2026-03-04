@@ -38,16 +38,16 @@ func (this *AssignmentService) AssignmentAdd(ctx context.Context, in *input.Assi
 	if node == nil {
 		return nil, errors.New("node not found")
 	}
-	m := &model.Assignment{
-		ProcessID:   in.ProcessID,
-		ProcessCode: process.Code,
-		NodeID:      in.NodeID,
-		NodeCode:    node.Code,
-		Type:        in.Type,
-		Value:       in.Value,
-		Priority:    in.Priority,
-		Strategy:    in.Strategy,
-	}
+	m := model.NewAssignmentBuilder().
+		ProcessID(in.ProcessID).
+		ProcessCode(process.Code).
+		NodeID(in.NodeID).
+		NodeCode(node.Code).
+		Type(in.Type).
+		Value(in.Value).
+		Priority(in.Priority).
+		Strategy(in.Strategy).
+		Build()
 	if _, err := dao.DefaultAssignmentDao.AssignmentAdd(ctx, m); err != nil {
 		return nil, err
 	}

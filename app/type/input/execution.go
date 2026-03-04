@@ -21,4 +21,11 @@ type (
 		BusinessType string `json:"business_type"`
 		Status       string `json:"status"`
 	}
+
+	ExecutionStartInput struct {
+		ProcessCode  string `json:"process_code"`
+		BusinessKey  string `json:"business_key"`
+		BusinessType string `json:"business_type"`
+		CreatedBy    string `json:"created_by"`
+	}
 )

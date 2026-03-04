@@ -23,17 +23,17 @@ func (this *LogService) LogGet(ctx context.Context, in *input.LogGetInput) (inte
 }
 
 func (this *LogService) LogAdd(ctx context.Context, in *input.LogAddInput) (interface{}, error) {
-	m := &model.Log{
-		ProcessID:   in.ProcessID,
-		ProcessCode: in.ProcessCode,
-		ExecutionID: in.ExecutionID,
-		NodeID:      in.NodeID,
-		NodeCode:    in.NodeCode,
-		TaskID:      in.TaskID,
-		AssigneeID:  in.AssigneeID,
-		Action:      in.Action,
-		Remark:      in.Remark,
-	}
+	m := model.NewLogBuilder().
+		ProcessID(in.ProcessID).
+		ProcessCode(in.ProcessCode).
+		ExecutionID(in.ExecutionID).
+		NodeID(in.NodeID).
+		NodeCode(in.NodeCode).
+		TaskID(in.TaskID).
+		AssigneeID(in.AssigneeID).
+		Action(in.Action).
+		Remark(in.Remark).
+		Build()
 	if _, err := dao.DefaultLogDao.LogAdd(ctx, m); err != nil {
 		return nil, err
 	}

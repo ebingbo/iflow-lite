@@ -22,11 +22,11 @@ func (this *TransitionService) TransitionGet(ctx context.Context, in *input.Tran
 }
 
 func (this *TransitionService) TransitionAdd(ctx context.Context, in *input.TransitionAddInput) (interface{}, error) {
-	m := &model.Transition{
-		ProcessID:  in.ProcessID,
-		FromNodeID: in.FromNodeID,
-		ToNodeID:   in.ToNodeID,
-	}
+	m := model.NewTransitionBuilder().
+		ProcessID(in.ProcessID).
+		FromNodeID(in.FromNodeID).
+		ToNodeID(in.ToNodeID).
+		Build()
 	if _, err := dao.DefaultTransitionDao.TransitionAdd(ctx, m); err != nil {
 		return nil, err
 	}

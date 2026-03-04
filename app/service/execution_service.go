@@ -5,6 +5,7 @@ import (
 
 	"iflow-lite/core/constant"
 	"iflow-lite/dao"
+	"iflow-lite/engine"
 	"iflow-lite/type/input"
 	"iflow-lite/type/model"
 	"iflow-lite/type/output"
@@ -18,7 +19,9 @@ type ExecutionService struct {
 func NewExecutionService() *ExecutionService {
 	return &ExecutionService{}
 }
-
+func (this *ExecutionService) ExecutionStart(ctx context.Context, in *input.ExecutionStartInput) (interface{}, error) {
+	return engine.DefaultExecutionEngine.ExecutionStart(ctx, in.ProcessCode, in.BusinessKey, in.BusinessType, in.CreatedBy)
+}
 func (this *ExecutionService) ExecutionGet(ctx context.Context, in *input.ExecutionGetInput) (interface{}, error) {
 	return dao.DefaultExecutionDao.ExecutionGet(ctx, in.ID)
 }
@@ -28,15 +31,15 @@ func (this *ExecutionService) ExecutionAdd(ctx context.Context, in *input.Execut
 	if err != nil {
 		return nil, err
 	}
-	m := &model.Execution{
-		ProcessID:    process.ID,
-		ProcessCode:  process.Code,
-		ProcessName:  process.Name,
-		BusinessKey:  in.BusinessKey,
-		BusinessType: in.BusinessType,
-		CreatedBy:    in.CreatedBy,
-		Status:       constant.ExecutionStatusRunning,
-	}
+	m := model.NewExecutionBuilder().
+		ProcessID(process.ID).
+		ProcessCode(process.Code).
+		ProcessName(process.Name).
+		BusinessKey(in.BusinessKey).
+		BusinessType(in.BusinessType).
+		CreatedBy(in.CreatedBy).
+		Status(constant.ExecutionStatusRunning).
+		Build()
 	return dao.DefaultExecutionDao.ExecutionAdd(ctx, m)
 }
 

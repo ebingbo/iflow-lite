@@ -30,6 +30,19 @@ func (*TaskDao) TaskGet(ctx context.Context, id uint64) (*model.Task, error) {
 	}
 	return m, nil
 }
+
+func (*TaskDao) TaskGetWithTransaction(ctx context.Context, tx *gorm.DB, id uint64) (*model.Task, error) {
+	m := &model.Task{ID: id}
+	if err := tx.WithContext(ctx).First(m).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		logger.ServiceLogger.WithContext(ctx).Errorf("task get error: %+v", err)
+		return nil, err
+	}
+	return m, nil
+}
+
 func (*TaskDao) TaskAdd(ctx context.Context, m *model.Task) (*model.Task, error) {
 	if err := client.MysqlDB.WithContext(ctx).Create(m).Error; err != nil {
 		logger.ServiceLogger.WithContext(ctx).Errorf("task add error: %+v", err)
@@ -38,14 +51,21 @@ func (*TaskDao) TaskAdd(ctx context.Context, m *model.Task) (*model.Task, error)
 	return m, nil
 }
 
-func (*TaskDao) TaskAddWithTransaction(ctx context.Context, m *model.Task) (*model.Task, error) {
-	if err := client.MysqlDB.WithContext(ctx).Create(m).Error; err != nil {
+func (*TaskDao) TaskAddWithTransaction(ctx context.Context, tx *gorm.DB, m *model.Task) (*model.Task, error) {
+	if err := tx.WithContext(ctx).Create(m).Error; err != nil {
 		logger.ServiceLogger.WithContext(ctx).Errorf("task add with transaction error: %+v", err)
 		return nil, err
 	}
 	return m, nil
 }
 
+func (*TaskDao) TaskUpdateWithTransaction(ctx context.Context, tx *gorm.DB, m *model.Task) error {
+	if err := tx.WithContext(ctx).Save(m).Error; err != nil {
+		logger.ServiceLogger.WithContext(ctx).Errorf("task update with transaction error: %+v", err)
+		return err
+	}
+	return nil
+}
 func (*TaskDao) TaskList(ctx context.Context) ([]*model.Task, error) {
 	var items []*model.Task
 	if err := client.MysqlDB.WithContext(ctx).Find(&items).Error; err != nil {

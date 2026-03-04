@@ -7,9 +7,9 @@ use iflow_db;
 truncate table process;
 truncate table node;
 truncate table transition;
+truncate table assignment;
 truncate table execution;
 truncate table task;
-truncate table assignment;
 truncate table log;
 
 -- 角色表
@@ -140,7 +140,6 @@ create table if not exists task
     status       varchar(20)  not null default 'pending' comment '任务状态：pending, running, completed, skipped',
     started_at   datetime     null comment '开始时间',
     ended_at     datetime     null comment '结束时间',
-    description  text comment '描述',
     remark       text comment '备注',
     created_at   datetime     not null default current_timestamp comment '创建时间',
     updated_at   datetime     not null default current_timestamp on update current_timestamp comment '更新时间',

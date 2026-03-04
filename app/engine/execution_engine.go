@@ -13,6 +13,8 @@ import (
 	"gorm.io/gorm"
 )
 
+var DefaultExecutionEngine = NewExecutionEngine()
+
 type ExecutionEngine struct {
 }
 
@@ -20,9 +22,9 @@ func NewExecutionEngine() *ExecutionEngine {
 	return &ExecutionEngine{}
 }
 
-func (e *ExecutionEngine) ExecutionStart(ctx context.Context, processCode string, businessKey string, businessType string, createdBy string) error {
-
-	return client.MysqlDB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+func (e *ExecutionEngine) ExecutionStart(ctx context.Context, processCode string, businessKey string, businessType string, createdBy string) (*model.Execution, error) {
+	var execution *model.Execution
+	if err := client.MysqlDB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// 执行事务操作
 		process, err := dao.DefaultProcessDao.ProcessTakeWithTransaction(ctx, tx, processCode)
 		if err != nil {
@@ -31,13 +33,14 @@ func (e *ExecutionEngine) ExecutionStart(ctx context.Context, processCode string
 		if process == nil {
 			return code.New(400, "process not found")
 		}
-		execution := model.NewExecutionBuilder().
+		execution = model.NewExecutionBuilder().
 			ProcessID(process.ID).
 			ProcessCode(processCode).
 			ProcessName(process.Name).
 			BusinessKey(businessKey).
 			BusinessType(businessType).
 			CreatedBy(createdBy).
+			StartedAt(time.Now()).
 			Status(constant.ExecutionStatusRunning).
 			Build()
 		if _, err := dao.DefaultExecutionDao.ExecutionAddWithTransaction(ctx, tx, execution); err != nil {
@@ -51,11 +54,165 @@ func (e *ExecutionEngine) ExecutionStart(ctx context.Context, processCode string
 		if node == nil {
 			return code.New(400, "first node not found")
 		}
-		return nil
+		return e.taskCreate(ctx, tx, execution, node)
+	}); err != nil {
+		return nil, err
+	}
+	return execution, nil
+}
+
+func (e *ExecutionEngine) TaskComplete(ctx context.Context, taskID uint64, assigneeID string, remark string) error {
+	return client.MysqlDB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		task, err := dao.DefaultTaskDao.TaskGetWithTransaction(ctx, tx, taskID)
+		if err != nil {
+			return err
+		}
+		if task == nil {
+			return code.New(400, "task not found")
+		}
+		if task.Status == constant.TaskStatusCompleted {
+			return nil
+		}
+		if task.AssigneeID != assigneeID {
+			return code.New(400, "not allow complete task")
+		}
+		previewStatus := task.Status
+
+		now := time.Now()
+		task.Status = constant.TaskStatusCompleted
+		task.EndedAt = &now
+		task.Remark = remark
+		if err := dao.DefaultTaskDao.TaskUpdateWithTransaction(ctx, tx, task); err != nil {
+			return err
+		}
+
+		log := model.NewLogBuilder().
+			ProcessID(task.ProcessID).
+			ProcessCode(task.ProcessCode).
+			ExecutionID(task.ExecutionID).
+			NodeID(task.NodeID).
+			NodeCode(task.NodeCode).
+			TaskID(task.ID).
+			Action(constant.LogActionCompleteTask).
+			AssigneeID(assigneeID).
+			Remark("完成任务").
+			Build()
+		if _, err := dao.DefaultLogDao.LogAddWithTransaction(ctx, tx, log); err != nil {
+			return err
+		}
+
+		execution, err := dao.DefaultExecutionDao.ExecutionGetWithTransaction(ctx, tx, task.ExecutionID)
+		if err != nil {
+			return err
+		}
+		if execution == nil {
+			return code.New(400, "execution not found")
+		}
+
+		if previewStatus == constant.TaskStatusSkipped {
+			return e.executionComplete(ctx, tx, execution)
+		}
+		node, err := dao.DefaultNodeDao.NodeGetWithTransaction(ctx, tx, task.NodeID)
+		if err != nil {
+			return err
+		}
+		if node == nil {
+			return code.New(400, "node not found")
+		}
+		if err := e.nextTaskCreate(ctx, tx, execution, node); err != nil {
+			return err
+		}
+		return e.executionProgressUpdate(ctx, tx, execution)
 	})
 }
 
-func (e *ExecutionEngine) ExecutionComplete(ctx context.Context, tx *gorm.DB, execution *model.Execution) error {
+func (e *ExecutionEngine) TaskSkip(ctx context.Context, taskID uint64, assigneeID string) error {
+	return client.MysqlDB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		task, err := dao.DefaultTaskDao.TaskGetWithTransaction(ctx, tx, taskID)
+		if err != nil {
+			return err
+		}
+		if task == nil {
+			return code.New(400, "task not found")
+		}
+		if task.Status == constant.TaskStatusSkipped {
+			return nil
+		}
+		if task.AssigneeID != assigneeID {
+			return code.New(400, "not allow skip task")
+		}
+
+		task.Status = constant.TaskStatusSkipped
+		if err := dao.DefaultTaskDao.TaskUpdateWithTransaction(ctx, tx, task); err != nil {
+			return err
+		}
+		log := model.NewLogBuilder().
+			ProcessID(task.ProcessID).
+			ProcessCode(task.ProcessCode).
+			ExecutionID(task.ExecutionID).
+			NodeID(task.NodeID).
+			NodeCode(task.NodeCode).
+			TaskID(task.ID).
+			Action(constant.LogActionSkipTask).
+			AssigneeID(assigneeID).
+			Remark("跳过任务").
+			Build()
+		if _, err := dao.DefaultLogDao.LogAddWithTransaction(ctx, tx, log); err != nil {
+			return err
+		}
+
+		execution, err := dao.DefaultExecutionDao.ExecutionGetWithTransaction(ctx, tx, task.ExecutionID)
+		if err != nil {
+			return err
+		}
+		if execution == nil {
+			return code.New(400, "execution not found")
+		}
+		node, err := dao.DefaultNodeDao.NodeGetWithTransaction(ctx, tx, task.NodeID)
+		if err != nil {
+			return err
+		}
+		if node == nil {
+			return code.New(400, "node not found")
+		}
+		return e.nextTaskCreate(ctx, tx, execution, node)
+	})
+}
+
+func (e *ExecutionEngine) TaskDelegate(ctx context.Context, taskID uint64, fromAssigneeID string, toAssigneeID string) error {
+	return client.MysqlDB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		task, err := dao.DefaultTaskDao.TaskGetWithTransaction(ctx, tx, taskID)
+		if err != nil {
+			return err
+		}
+		if task == nil {
+			return code.New(400, "task not found")
+		}
+		if task.AssigneeID != fromAssigneeID {
+			return code.New(400, "not allow delegate task")
+		}
+		task.AssigneeID = toAssigneeID
+		if err := dao.DefaultTaskDao.TaskUpdateWithTransaction(ctx, tx, task); err != nil {
+			return err
+		}
+		log := model.NewLogBuilder().
+			ProcessID(task.ProcessID).
+			ProcessCode(task.ProcessCode).
+			ExecutionID(task.ExecutionID).
+			NodeID(task.NodeID).
+			NodeCode(task.NodeCode).
+			TaskID(task.ID).
+			Action(constant.LogActionDelegateTask).
+			AssigneeID(fromAssigneeID).
+			Remark("委托任务").
+			Build()
+		if _, err := dao.DefaultLogDao.LogAddWithTransaction(ctx, tx, log); err != nil {
+			return err
+		}
+		return nil
+	})
+}
+func (e *ExecutionEngine) executionComplete(ctx context.Context, tx *gorm.DB, execution *model.Execution) error {
 	if execution.Status == constant.ExecutionStatusCompleted {
 		return nil
 	}
@@ -84,23 +241,26 @@ func (e *ExecutionEngine) ExecutionComplete(ctx context.Context, tx *gorm.DB, ex
 	return nil
 }
 
-func (e *ExecutionEngine) TaskCreate(ctx context.Context, tx *gorm.DB, execution *model.Execution, node *model.Node) error {
+func (e *ExecutionEngine) taskCreate(ctx context.Context, tx *gorm.DB, execution *model.Execution, node *model.Node) error {
 	if !e.previewTaskCompleted(ctx, tx, execution, node) {
 		return nil
 	}
 	if node.Type == constant.NodeTypeStart {
-		return e.TaskCreateForStartNode(ctx, tx, execution, node)
+		return e.taskCreateForStartNode(ctx, tx, execution, node)
 	}
 	if node.Type == constant.NodeTypeJoin {
-		return e.TaskCreateForJoinNode(ctx, tx, execution, node)
+		return e.taskCreateForJoinNode(ctx, tx, execution, node)
 	}
 	if node.Type == constant.NodeTypeEnd {
-		return e.TaskCreateForEndNode(ctx, tx, execution, node)
+		return e.taskCreateForEndNode(ctx, tx, execution, node)
+	}
+	if node.Type == constant.NodeTypeUserTask {
+		return e.taskCreateForUserTaskNode(ctx, tx, execution, node)
 	}
 	return nil
 }
 
-func (e *ExecutionEngine) TaskCreateForStartNode(ctx context.Context, tx *gorm.DB, execution *model.Execution, node *model.Node) error {
+func (e *ExecutionEngine) taskCreateForStartNode(ctx context.Context, tx *gorm.DB, execution *model.Execution, node *model.Node) error {
 	log := model.NewLogBuilder().
 		ProcessID(execution.ProcessID).
 		ProcessCode(execution.ProcessCode).
@@ -114,10 +274,10 @@ func (e *ExecutionEngine) TaskCreateForStartNode(ctx context.Context, tx *gorm.D
 	if _, err := dao.DefaultLogDao.LogAddWithTransaction(ctx, tx, log); err != nil {
 		return err
 	}
-	return e.NextTaskCreate(ctx, tx, execution, node)
+	return e.nextTaskCreate(ctx, tx, execution, node)
 }
 
-func (e *ExecutionEngine) TaskCreateForJoinNode(ctx context.Context, tx *gorm.DB, execution *model.Execution, node *model.Node) error {
+func (e *ExecutionEngine) taskCreateForJoinNode(ctx context.Context, tx *gorm.DB, execution *model.Execution, node *model.Node) error {
 	log := model.NewLogBuilder().
 		ProcessID(execution.ProcessID).
 		ProcessCode(execution.ProcessCode).
@@ -130,27 +290,86 @@ func (e *ExecutionEngine) TaskCreateForJoinNode(ctx context.Context, tx *gorm.DB
 	if _, err := dao.DefaultLogDao.LogAddWithTransaction(ctx, tx, log); err != nil {
 		return err
 	}
-	return e.NextTaskCreate(ctx, tx, execution, node)
+	return e.nextTaskCreate(ctx, tx, execution, node)
 }
 
-func (e *ExecutionEngine) TaskCreateForEndNode(ctx context.Context, tx *gorm.DB, execution *model.Execution, node *model.Node) error {
-	return e.ExecutionComplete(ctx, tx, execution)
+func (e *ExecutionEngine) taskCreateForEndNode(ctx context.Context, tx *gorm.DB, execution *model.Execution, node *model.Node) error {
+	return e.executionComplete(ctx, tx, execution)
 }
 
-func (e *ExecutionEngine) NextTaskCreate(ctx context.Context, tx *gorm.DB, execution *model.Execution, node *model.Node) error {
-	nextNodes, err := e.NextNodeList(ctx, tx, node)
+func (e *ExecutionEngine) taskCreateForUserTaskNode(ctx context.Context, tx *gorm.DB, execution *model.Execution, node *model.Node) error {
+	assignees := e.assigneeList(ctx, tx, execution, node)
+	if len(assignees) == 0 {
+		return code.New(400, "no assignee")
+	}
+	for _, assignee := range assignees {
+		task := model.NewTaskBuilder().
+			ProcessID(execution.ProcessID).
+			ProcessCode(execution.ProcessCode).
+			ProcessName(execution.ProcessName).
+			ExecutionID(execution.ID).
+			NodeID(node.ID).
+			NodeCode(node.Code).
+			NodeName(node.Name).
+			AssigneeID(assignee).
+			Status(constant.TaskStatusRunning).
+			StartedAt(time.Now()).
+			Build()
+		if _, err := dao.DefaultTaskDao.TaskAddWithTransaction(ctx, tx, task); err != nil {
+			return err
+		}
+		log := model.NewLogBuilder().
+			ProcessID(execution.ProcessID).
+			ProcessCode(execution.ProcessCode).
+			ExecutionID(execution.ID).
+			NodeID(node.ID).
+			NodeCode(node.Code).
+			TaskID(task.ID).
+			Action(constant.LogActionCreateTask).
+			AssigneeID(assignee).
+			Remark("创建任务").
+			Build()
+		if _, err := dao.DefaultLogDao.LogAddWithTransaction(ctx, tx, log); err != nil {
+			return err
+		}
+		// todo 发送任务创建通知
+	}
+	return nil
+}
+
+func (e *ExecutionEngine) assigneeList(ctx context.Context, tx *gorm.DB, execution *model.Execution, node *model.Node) []string {
+	assigneeList, err := dao.DefaultAssignmentDao.AssignmentListWithTransaction(ctx, tx, map[string]interface{}{"node_id": node.ID})
+	if err != nil {
+		return nil
+	}
+	var assignees []string
+	for _, assignee := range assigneeList {
+		if assignee.Type == constant.AssignmentTypeUser {
+			assignees = append(assignees, assignee.Value)
+		}
+		if assignee.Type == constant.AssignmentTypeRole {
+			// todo 获取角色用户列表
+		}
+	}
+	if len(assignees) == 0 {
+		assignees = append(assignees, execution.CreatedBy)
+	}
+	return assignees
+}
+func (e *ExecutionEngine) nextTaskCreate(ctx context.Context, tx *gorm.DB, execution *model.Execution, node *model.Node) error {
+	nextNodes, err := e.nextNodeList(ctx, tx, node)
 	if err != nil {
 		return err
 	}
 	for _, nextNode := range nextNodes {
-		if err := e.TaskCreate(ctx, tx, execution, nextNode); err != nil {
+		if err := e.taskCreate(ctx, tx, execution, nextNode); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (e *ExecutionEngine) NextNodeList(ctx context.Context, tx *gorm.DB, node *model.Node) ([]*model.Node, error) {
+func (e *ExecutionEngine) nextNodeList(ctx context.Context, tx *gorm.DB, node *model.Node) ([]*model.Node, error) {
 	toNodeIDs, err := dao.DefaultTransitionDao.ToNodeIDListWithTransaction(ctx, tx, node.ProcessID, node.ID)
 	if err != nil {
 		return nil, err
@@ -186,4 +405,22 @@ func (e *ExecutionEngine) allTaskCompleted(ctx context.Context, tx *gorm.DB, exe
 		return false
 	}
 	return nodeCount == taskCount
+}
+
+func (e *ExecutionEngine) executionProgressUpdate(ctx context.Context, tx *gorm.DB, execution *model.Execution) error {
+	nodeCond := map[string]interface{}{"process_id": execution.ProcessID, "type": constant.NodeTypeUserTask}
+	nodeCount, err := dao.DefaultNodeDao.NodeCountWithTransaction(ctx, tx, nodeCond)
+	if err != nil {
+		return err
+	}
+	taskCond := map[string]interface{}{"execution_id": execution.ID, "status": constant.TaskStatusCompleted}
+	taskCount, err := dao.DefaultTaskDao.TaskCountWithTransaction(ctx, tx, taskCond)
+	if err != nil {
+		return err
+	}
+	execution.Progress = float64(taskCount) / float64(nodeCount) * 100
+	if err := dao.DefaultExecutionDao.ExecutionUpdateWithTransaction(ctx, tx, execution); err != nil {
+		return err
+	}
+	return nil
 }

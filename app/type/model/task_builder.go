@@ -60,10 +60,7 @@ func (builder *TaskBuilder) EndedAt(t time.Time) *TaskBuilder {
 	builder.task.EndedAt = &t
 	return builder
 }
-func (builder *TaskBuilder) Description(description string) *TaskBuilder {
-	builder.task.Description = description
-	return builder
-}
+
 func (builder *TaskBuilder) Remark(remark string) *TaskBuilder {
 	builder.task.Remark = remark
 	return builder

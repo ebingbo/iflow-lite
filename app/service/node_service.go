@@ -33,17 +33,17 @@ func (this *NodeService) NodeAdd(ctx context.Context, in *input.NodeAddInput) (i
 	if process == nil {
 		return nil, errors.New("process not found")
 	}
-	m := &model.Node{
-		ProcessID:   process.ID,
-		ProcessCode: process.Code,
-		Tag:         in.Tag,
-		Name:        in.Name,
-		Code:        in.Code,
-		Type:        in.Type,
-		Description: in.Description,
-		CreatedBy:   util.UIDWithContext(ctx),
-		UpdatedBy:   util.UIDWithContext(ctx),
-	}
+	m := model.NewNodeBuilder().
+		ProcessID(in.ProcessID).
+		ProcessCode(process.Code).
+		Tag(in.Tag).
+		Name(in.Name).
+		Code(in.Code).
+		Type(in.Type).
+		Description(in.Description).
+		CreatedBy(util.UIDWithContext(ctx)).
+		UpdatedBy(util.UIDWithContext(ctx)).
+		Build()
 	if _, err := dao.DefaultNodeDao.NodeAdd(ctx, m); err != nil {
 		return nil, err
 	}

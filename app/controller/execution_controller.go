@@ -21,7 +21,19 @@ func ExecutionGet(ctx *gin.Context) {
 	}
 	http.JsonResponse(ctx, result)
 }
-
+func ExecutionStart(ctx *gin.Context) {
+	var in input.ExecutionStartInput
+	if err := ctx.ShouldBindJSON(&in); err != nil {
+		http.JsonResponse(ctx, err)
+		return
+	}
+	result, err := service.DefaultExecutionService.ExecutionStart(ctx.Request.Context(), &in)
+	if err != nil {
+		http.JsonResponse(ctx, err)
+		return
+	}
+	http.JsonResponse(ctx, result)
+}
 func ExecutionAdd(ctx *gin.Context) {
 	var in input.ExecutionAddInput
 	if err := ctx.ShouldBindJSON(&in); err != nil {

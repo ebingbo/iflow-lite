@@ -11,4 +11,5 @@ func ExecutionRouterInit(e *gin.Engine) {
 	group.POST("/add", controller.ExecutionAdd)
 	group.GET("/get", controller.ExecutionGet)
 	group.POST("/query", controller.ExecutionQuery)
+	group.POST("/start", controller.ExecutionStart)
 }

@@ -15,7 +15,6 @@ type Task struct {
 	Status      string     `gorm:"column:status;default:'running'" json:"status" example:"running"`
 	StartedAt   *time.Time `gorm:"column:started_at" json:"started_at"`
 	EndedAt     *time.Time `gorm:"column:ended_at" json:"ended_at"`
-	Description string     `gorm:"column:description;default:''" json:"description" example:"1"`
 	Remark      string     `gorm:"column:remark;default:''" json:"remark" example:"1"`
 	CreatedAt   time.Time  `gorm:"column:created_at;autoCreateTime;" json:"created_at" example:"2020-10-11T10:10:10"` // 创建时间
 	UpdatedAt   time.Time  `gorm:"column:updated_at;autoUpdateTime;" json:"updated_at" example:"2020-10-11T10:10:10"` // 更新时间

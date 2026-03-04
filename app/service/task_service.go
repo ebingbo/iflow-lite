@@ -7,6 +7,7 @@ import (
 	"iflow-lite/core/code"
 	"iflow-lite/core/constant"
 	"iflow-lite/dao"
+	"iflow-lite/engine"
 	"iflow-lite/type/input"
 	"iflow-lite/type/model"
 	"iflow-lite/type/output"
@@ -40,21 +41,19 @@ func (this *TaskService) TaskAdd(ctx context.Context, in *input.TaskAddInput) (i
 	if node == nil {
 		return nil, code.New(400, "node not found")
 	}
-	now := time.Now()
-	m := &model.Task{
-		ProcessID:   in.ProcessID,
-		ProcessCode: process.Code,
-		ProcessName: process.Name,
-		NodeID:      in.NodeID,
-		NodeCode:    node.Code,
-		NodeName:    node.Name,
-		ExecutionID: in.ExecutionID,
-		AssigneeID:  in.AssigneeID,
-		Description: in.Description,
-		Remark:      in.Remark,
-		Status:      constant.TaskStatusRunning,
-		StartedAt:   &now,
-	}
+	m := model.NewTaskBuilder().
+		ProcessID(in.ProcessID).
+		ProcessCode(process.Code).
+		ProcessName(process.Name).
+		NodeID(in.NodeID).
+		NodeCode(node.Code).
+		NodeName(node.Name).
+		ExecutionID(in.ExecutionID).
+		AssigneeID(in.AssigneeID).
+		Remark(in.Remark).
+		Status(constant.TaskStatusRunning).
+		StartedAt(time.Now()).
+		Build()
 	if _, err := dao.DefaultTaskDao.TaskAdd(ctx, m); err != nil {
 		return nil, err
 	}
@@ -99,4 +98,15 @@ func (this *TaskService) TaskQuery(ctx context.Context, in *input.TaskQueryInput
 	result.Total = total
 	result.Items = items
 	return result, nil
+}
+
+func (this *TaskService) TaskComplete(ctx context.Context, in *input.TaskCompleteInput) error {
+	return engine.DefaultExecutionEngine.TaskComplete(ctx, in.ID, in.AssigneeID, in.Remark)
+}
+
+func (this *TaskService) TaskSkip(ctx context.Context, in *input.TaskSkipInput) error {
+	return engine.DefaultExecutionEngine.TaskSkip(ctx, in.ID, in.AssigneeID)
+}
+func (this *TaskService) TaskDelegate(ctx context.Context, in *input.TaskDelegateInput) error {
+	return engine.DefaultExecutionEngine.TaskDelegate(ctx, in.ID, in.FromAssigneeID, in.ToAssigneeID)
 }

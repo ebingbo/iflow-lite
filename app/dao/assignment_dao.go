@@ -38,10 +38,19 @@ func (*AssignmentDao) AssignmentAdd(ctx context.Context, m *model.Assignment) (*
 	return m, nil
 }
 
-func (*AssignmentDao) AssignmentList(ctx context.Context) ([]*model.Assignment, error) {
+func (*AssignmentDao) AssignmentList(ctx context.Context, cond map[string]interface{}) ([]*model.Assignment, error) {
 	var items []*model.Assignment
-	if err := client.MysqlDB.WithContext(ctx).Find(&items).Error; err != nil {
+	if err := client.MysqlDB.WithContext(ctx).Where(cond).Find(&items).Error; err != nil {
 		logger.ServiceLogger.WithContext(ctx).Errorf("assignment list error: %+v", err)
+		return nil, err
+	}
+	return items, nil
+}
+
+func (*AssignmentDao) AssignmentListWithTransaction(ctx context.Context, tx *gorm.DB, cond map[string]interface{}) ([]*model.Assignment, error) {
+	var items []*model.Assignment
+	if err := tx.Where(cond).Find(&items).Error; err != nil {
+		logger.ServiceLogger.WithContext(ctx).Errorf("assignment list with transaction error: %+v", err)
 		return nil, err
 	}
 	return items, nil

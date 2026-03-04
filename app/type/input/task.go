@@ -21,8 +21,23 @@ type (
 		ProcessCode string `json:"process_code"`
 		ExecutionID uint64 `json:"execution_id"`
 		NodeID      uint64 `json:"node_id"`
-		NodeCode   string `json:"node_code"`
+		NodeCode    string `json:"node_code"`
 		AssigneeID  string `json:"assignee_id"`
 		Status      string `json:"status"`
+	}
+
+	TaskCompleteInput struct {
+		ID         uint64 `json:"id"`
+		AssigneeID string `json:"assignee_id"`
+		Remark     string `json:"remark"`
+	}
+	TaskSkipInput struct {
+		ID         uint64 `json:"id"`
+		AssigneeID string `json:"assignee_id"`
+	}
+	TaskDelegateInput struct {
+		ID             uint64 `json:"id"`
+		FromAssigneeID string `json:"from_assignee_id"`
+		ToAssigneeID   string `json:"to_assignee_id"`
 	}
 )

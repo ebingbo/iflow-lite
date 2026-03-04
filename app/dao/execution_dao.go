@@ -29,6 +29,19 @@ func (*ExecutionDao) ExecutionGet(ctx context.Context, id uint64) (*model.Execut
 	}
 	return m, nil
 }
+
+func (*ExecutionDao) ExecutionGetWithTransaction(ctx context.Context, tx *gorm.DB, id uint64) (*model.Execution, error) {
+	m := &model.Execution{ID: id}
+	if err := tx.WithContext(ctx).First(m).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		logger.ServiceLogger.WithContext(ctx).Errorf("execution get error: %+v", err)
+		return nil, err
+	}
+	return m, nil
+}
+
 func (*ExecutionDao) ExecutionAdd(ctx context.Context, m *model.Execution) (*model.Execution, error) {
 	if err := client.MysqlDB.WithContext(ctx).Create(m).Error; err != nil {
 		logger.ServiceLogger.WithContext(ctx).Errorf("execution add error: %+v", err)
