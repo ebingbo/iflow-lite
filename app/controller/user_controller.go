@@ -22,6 +22,15 @@ func UserGet(ctx *gin.Context) {
 	http.JsonResponse(ctx, result)
 }
 
+func UserProfile(ctx *gin.Context) {
+	result, err := service.DefaultUserService.UserProfile(ctx.Request.Context())
+	if err != nil {
+		http.JsonResponse(ctx, err)
+		return
+	}
+	http.JsonResponse(ctx, result)
+}
+
 func UserAdd(ctx *gin.Context) {
 	var in input.UserAddInput
 	if err := ctx.ShouldBindJSON(&in); err != nil {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 
 	http2 "iflow-lite/core/http"
 	token2 "iflow-lite/core/token"
@@ -15,7 +16,7 @@ import (
 func AuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		tokenString := c.Request.Header.Get("Authorization")
-
+		tokenString = strings.Replace(tokenString, "Bearer ", "", 1)
 		if tokenString != "" {
 			token, err := token2.ValidateJWT(tokenString)
 			if err != nil || !token.Valid {

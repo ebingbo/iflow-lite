@@ -16,17 +16,17 @@ const toast = useToast()
 const fields = [{
   name: 'email',
   type: 'text' as const,
-  label: 'Email',
-  placeholder: 'Enter your email',
+  label: '邮箱',
+  placeholder: '输入邮箱',
   required: true
 }, {
   name: 'password',
-  label: 'Password',
+  label: '密码',
   type: 'password' as const,
-  placeholder: 'Enter your password'
+  placeholder: '输入密码'
 }, {
   name: 'remember',
-  label: 'Remember me',
+  label: '记住我',
   type: 'checkbox' as const
 }]
 
@@ -45,14 +45,37 @@ const providers = [{
 }]
 
 const schema = z.object({
-  email: z.email('Invalid email'),
-  password: z.string().min(8, 'Must be at least 8 characters')
+  email: z.email('非法邮箱'),
+  password: z.string('密码必填').min(8, '至少8个字符')
 })
 
 type Schema = z.output<typeof schema>
+const loading = ref(false)
+const { token, login } = useAuth()
 
-function onSubmit(payload: FormSubmitEvent<Schema>) {
-  console.log('Submitted', payload)
+if (token.value) {
+  await navigateTo('/')
+}
+
+async function onSubmit(event: FormSubmitEvent<Schema>) {
+  try {
+    loading.value = true
+    await login(event.data.email, event.data.password)
+    toast.add({
+      title: '登录成功',
+      description: '欢迎回来',
+      color: 'success'
+    })
+    await navigateTo('/')
+  } catch (error) {
+    toast.add({
+      title: '登录失败',
+      description: error instanceof Error ? error.message : '用户名或密码错误',
+      color: 'error'
+    })
+  } finally {
+    loading.value = false
+  }
 }
 </script>
 
@@ -60,16 +83,21 @@ function onSubmit(payload: FormSubmitEvent<Schema>) {
   <UAuthForm
     :fields="fields"
     :schema="schema"
-    :providers="providers"
-    title="Welcome back"
+    title="欢迎回来"
     icon="i-lucide-lock"
+    :submit="{
+      label: '登录'
+    }"
     @submit="onSubmit"
   >
     <template #description>
-      Don't have an account? <ULink
+      没有账号？
+      <ULink
         to="/signup"
         class="text-primary font-medium"
-      >Sign up</ULink>.
+      >注册
+      </ULink>
+      .
     </template>
 
     <template #password-hint>
@@ -77,14 +105,18 @@ function onSubmit(payload: FormSubmitEvent<Schema>) {
         to="/"
         class="text-primary font-medium"
         tabindex="-1"
-      >Forgot password?</ULink>
+      >忘记密码？
+      </ULink>
     </template>
 
     <template #footer>
-      By signing in, you agree to our <ULink
+      登录即表示您同意我们的
+      <ULink
         to="/"
         class="text-primary font-medium"
-      >Terms of Service</ULink>.
+      >服务条款
+      </ULink>
+      .
     </template>
   </UAuthForm>
 </template>

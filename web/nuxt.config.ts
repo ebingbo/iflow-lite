@@ -18,10 +18,12 @@ export default defineNuxtConfig({
   ui: {
     fonts: false
   },
+  runtimeConfig: {
+    apiBase: 'http://127.0.0.1:8080'
+  },
   routeRules: {
     '/docs': { redirect: '/docs/getting-started', prerender: false }
   },
-
   compatibilityDate: '2024-07-11',
 
   nitro: {

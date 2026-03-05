@@ -11,4 +11,5 @@ func UserRouterInit(e *gin.Engine) {
 	group.GET("/get", controller.UserGet)
 	group.POST("/add", controller.UserAdd)
 	group.POST("/login", controller.UserLogin)
+	group.GET("/profile", controller.UserProfile)
 }
