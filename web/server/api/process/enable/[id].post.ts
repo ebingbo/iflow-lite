@@ -1,4 +1,4 @@
-import type { ApiMessageResponse } from '~/types/api'
+import type { ApiResponse } from '~/types/api'
 import { backendFetch, ensureApiSuccess } from '~~/server/utils/backend'
 
 export default eventHandler(async (event) => {
@@ -7,13 +7,13 @@ export default eventHandler(async (event) => {
   if (!id || !/^\d+$/.test(id)) {
     throw createError({
       statusCode: 400,
-      statusMessage: 'invalid customer id'
+      statusMessage: 'invalid process id'
     })
   }
 
-  const response = await backendFetch<ApiMessageResponse>(event, `/api/customer/delete/${id}`, {
+  const response = await backendFetch<ApiResponse<null>>(event, `/api/process/enable/${id}`, {
     method: 'POST'
   })
 
-  return ensureApiSuccess(response, 'Customer delete failed', 502)
+  return ensureApiSuccess(response, 'Process enable failed', 502)
 })

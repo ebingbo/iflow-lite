@@ -1,150 +1,118 @@
-title: Ship Your [SaaS]{class="text-primary"} at light speed
-description: Build production-ready SaaS applications with Nuxt UI's powerful components, authentication flows, and enterprise features. The same component library trusted by the entire Nuxt ecosystem.
+title: 轻量可扩展的 [流程引擎]{class="text-primary"}
+description: iFlow Lite 面向内部系统流程编排场景，提供流程定义、节点流转、任务执行、权限控制与审计能力，帮助团队更快落地标准化业务流程。
 seo:
-  title: Nuxt SaaS Template
-  description: Create stunning, fast and production-ready SaaS applications with Nuxt UI. 100+ Vue components, authentication, dark mode, and enterprise features built on Tailwind CSS.
+  title: iFlow Lite
+  description: iFlow Lite 是一个轻量级流程管理与工作流引擎，支持流程定义、任务执行、角色权限、事件监听与日志审计，前后端分离、易于扩展。
 navigation: false
 hero:
   links:
-    - label: Get started
+    - label: 进入流程管理
       icon: i-lucide-arrow-right
       trailing: true
-      to: https://ui.nuxt.com/docs/getting-started/installation/nuxt
-      target: _blank
+      to: /process
       size: xl
-    - label: Use this template
+    - label: 查看项目文档
+      icon: i-lucide-book-open-text
+      size: xl
+      color: neutral
+      variant: subtle
+      to: /docs
+    - label: GitHub 仓库
       icon: i-simple-icons-github
       size: xl
       color: neutral
       variant: subtle
-      to: https://github.com/nuxt-ui-templates/saas
+      to: https://github.com/ebingbo/iflow-lite
       target: _blank
 sections:
-  - title: Powered by Nuxt UI Components
-    description: Access the complete Nuxt UI component library with 100+ beautifully styled, accessible, and customizable Vue components. Everything you need to build professional SaaS applications.
+  - title: 面向业务流程的核心能力
+    description: 从流程定义到执行落地，iFlow Lite 提供完整链路能力，支持快速搭建审批、工单、流转、协同等流程场景。
     id: features
     orientation: horizontal
     features:
-      - name: 100+ UI Components
-        description: From buttons to modals, data tables to forms - all styled with Tailwind CSS and accessible out of the box.
-        icon: i-lucide-package
-      - name: Authentication Ready
-        description: Pre-built login, signup, and password reset flows. Just connect your backend and start onboarding users.
-        icon: i-lucide-shield
-      - name: TypeScript First
-        description: Full TypeScript support with auto-completion, type safety, and IntelliSense for every component and composable.
-        icon: i-lucide-code-2
-  - title: Built for Modern SaaS
-    description: Everything you need to launch and scale your SaaS. From beautiful marketing pages to complex dashboards, ship faster with production-ready patterns.
+      - name: 流程建模
+        description: 支持 start、end、user_task、service_task、网关等节点类型，可按业务规则灵活编排。
+        icon: i-lucide-workflow
+      - name: 执行与任务
+        description: 支持任务分配、状态流转、执行追踪，便于落地多角色协作流程。
+        icon: i-lucide-list-checks
+      - name: 审计与追踪
+        description: 关键操作全链路留痕，便于问题回溯、过程复盘与合规审计。
+        icon: i-lucide-file-clock
+  - title: 为内部系统集成而设计
+    description: 采用前后端分离架构，后端 Go 服务稳定高效，前端 Nuxt 交互清晰，易于接入既有业务系统。
     orientation: horizontal
     reverse: true
     features:
-      - name: Edge Performance
-        description: Optimized for Core Web Vitals with automatic code splitting, lazy loading, and SSR/SSG support.
-        icon: i-lucide-zap
-      - name: Dark Mode Ready
-        description: Automatic theme switching with smooth transitions. Respects system preferences and remembers user choice.
-        icon: i-lucide-moon
-      - name: Global Ready
-        description: Built-in i18n support for 50+ languages with RTL/LTR layouts and @nuxt/fonts integration.
-        icon: i-lucide-globe
+      - name: 后端稳定可靠
+        description: 基于 Go 与分层架构，接口边界清晰，便于持续演进与横向扩展。
+        icon: i-lucide-server
+      - name: 前端体验一致
+        description: 统一组件体系与交互模式，降低学习成本，提升后台管理效率。
+        icon: i-lucide-layout-grid
+      - name: 可扩展能力
+        description: 支持在事件、节点处理和业务规则层定制扩展，适配不同团队流程规范。
+        icon: i-lucide-plug
 features:
-  title: Everything You Need to Ship
-  description: Stop building from scratch. Focus on your unique features while Nuxt UI handles the foundations with battle-tested components and patterns.
+  title: 关键特性
+  description: 聚焦流程管理落地场景，覆盖定义、执行、治理与集成能力。
   items:
-    - title: Beautiful Design System
-      description: Semantic color aliases, comprehensive design tokens, and Tailwind Variants for consistent, customizable styling.
-      icon: i-lucide-palette
-    - title: Accessible by Default
-      description: Built on Reka UI for robust accessibility. WCAG compliant components that work for everyone, everywhere.
-      icon: i-lucide-accessibility
-    - title: Developer Experience
-      description: Auto-imports, hot module replacement, and comprehensive documentation. Build faster with less friction.
-      icon: i-lucide-terminal
-    - title: SEO Optimized
-      description: Server-side rendering, automatic meta tags, sitemap generation, and Open Graph images out of the box.
-      icon: i-lucide-search
-    - title: Production Ready
-      description: Error handling, loading states, form validation, and security best practices built into every component.
-      icon: i-lucide-check-circle
-    - title: Infinitely Customizable
-      description: Override any style with the ui prop, customize globally with AppConfig, or use Tailwind classes directly.
-      icon: i-lucide-settings
+    - title: 流程定义管理
+      description: 统一管理流程编码、名称、状态与描述，支持快速维护流程版本。
+      icon: i-lucide-folder-git-2
+    - title: 任务执行编排
+      description: 通过节点与转移关系驱动流程运行，支持复杂业务链路组织。
+      icon: i-lucide-git-branch-plus
+    - title: 权限与角色
+      description: 提供角色与分配规则能力，保障流程操作边界清晰可控。
+      icon: i-lucide-shield-check
+    - title: 事件监听扩展
+      description: 支持流程事件监听与自定义业务处理，便于对接外部系统。
+      icon: i-lucide-bell-ring
+    - title: 日志审计
+      description: 完整记录关键操作，提升排障效率与可追溯性。
+      icon: i-lucide-scroll-text
+    - title: 低成本二次开发
+      description: 结构清晰、模块化强，适合在企业内部持续迭代扩展。
+      icon: i-lucide-wrench
 testimonials:
-  headline: Trusted by Developers
-  title: Join Thousands Building with Nuxt UI
-  description: See why developers choose Nuxt UI to ship their SaaS applications faster and with more confidence.
+  headline: 典型使用场景
+  title: 让流程真正跑起来
+  description: iFlow Lite 可用于审批、运维、项目协同、服务流转等多类内部流程管理。
   items:
-    - quote: Nuxt UI transformed how we build. The component quality is exceptional - everything just works with perfect TypeScript support, accessibility, and dark mode built in.
+    - quote: 将请假、报销、采购等审批流程统一管理，减少线下沟通成本，缩短处理周期。
       user:
-        name: Sarah Chen
-        description: CTO at TechScale Solutions
+        name: 行政与人事
+        description: 审批流程标准化
         avatar:
           src: https://i.pravatar.cc/120?img=1
-    - quote: We shipped our MVP in 2 weeks instead of 2 months. The authentication flows and form components saved us countless hours of development time.
+    - quote: 把工单受理、派单、处理、验收流程串联起来，支持全链路追踪和责任闭环。
       user:
-        name: Marcus Rodriguez
-        description: VP of Engineering at DataFlow
+        name: 运维与客服
+        description: 工单流程可视化
         avatar:
           src: https://i.pravatar.cc/120?img=7
-    - quote: The design system with AppConfig is brilliant. We maintain brand consistency across all our products while leveraging the full component library.
+    - quote: 项目立项、任务分配、阶段验收流程在线化，团队协同更透明，管理成本更低。
       user:
-        name: David Kumar
-        description: Security Director at SecureStack
+        name: 项目管理
+        description: 项目过程治理
         avatar:
           src: https://i.pravatar.cc/120?img=3
-    - quote: Perfect Lighthouse scores out of the box. Our Core Web Vitals improved dramatically just by switching to Nuxt UI components.
+    - quote: 通过事件监听扩展对接消息通知、OA、CRM 等系统，打通多系统业务流转。
       user:
-        name: Emily Zhang
-        description: Lead Architect at ScaleForce
+        name: 平台研发
+        description: 系统集成与扩展
         avatar:
           src: https://i.pravatar.cc/120?img=5
-    - quote: The Tailwind Variants system makes customization so intuitive. We can override any component style while keeping the functionality intact.
-      user:
-        name: James Wilson
-        description: DevOps Lead at CloudPro
-        avatar:
-          src: https://i.pravatar.cc/120?img=8
-    - quote: From the SaaS template to production in days. The pre-built layouts, navigation, and content structure accelerated our launch.
-      user:
-        name: Lisa Patel
-        description: CEO at AutoScale
-        avatar:
-          src: https://i.pravatar.cc/120?img=9
-    - quote: Reka UI foundation means accessibility is never an afterthought. We achieved WCAG compliance without any custom work.
-      user:
-        name: Michael Torres
-        description: Frontend Lead at AccessFirst
-        avatar:
-          src: https://i.pravatar.cc/120?img=11
-    - quote: The documentation is outstanding. Every component has clear examples, and the community on Discord is incredibly helpful.
-      user:
-        name: Rachel Kim
-        description: Performance Engineer at APIHub
-        avatar:
-          src: https://i.pravatar.cc/120?img=10
-    - quote: We replaced three different UI libraries with Nuxt UI. The consistency and quality across all components is unmatched.
-      user:
-        name: Thomas Weber
-        description: UI Architecture Lead at DesignScale
-        avatar:
-          src: https://i.pravatar.cc/120?img=12
-    - quote: The integration with Nuxt modules is seamless. Color mode, fonts, icons - everything works together perfectly.
-      user:
-        name: Sophia Martinez
-        description: Integration Specialist at TechFlow
-        avatar:
-          src: https://i.pravatar.cc/120?img=14
 cta:
-  title: Ready to build an amazing SaaS?
-  description: Join thousands of developers building with Nuxt and Nuxt UI. Get this template and start shipping today.
+  title: 开始搭建你的流程中心
+  description: 从流程定义到执行治理，快速落地适合你团队的工作流系统。
   links:
-    - label: Start building
-      to: 'https://ui.nuxt.com/docs/getting-started/installation/nuxt'
-      target: _blank
+    - label: 立即体验
+      to: '/process'
       trailingIcon: i-lucide-arrow-right
-    - label: View on GitHub
-      to: 'https://github.com/nuxt-ui-templates/saas'
+    - label: 查看仓库
+      to: 'https://github.com/ebingbo/iflow-lite'
       target: _blank
       variant: subtle
       icon: i-simple-icons-github

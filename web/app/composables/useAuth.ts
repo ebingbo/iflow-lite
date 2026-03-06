@@ -1,4 +1,4 @@
-import type { ApiMessageResponse, ApiResponse } from '~/types/api'
+import type { ApiResponse } from '~/types/api'
 import type { UserLoginData, UserPasswordUpdateBody, UserProfile, UserProfileUpdateBody } from '~/types/user'
 
 export function useAuth() {
@@ -60,7 +60,7 @@ export function useAuth() {
   }
 
   async function updatePassword(body: UserPasswordUpdateBody) {
-    return $fetch<ApiMessageResponse>('/api/user/password/update', {
+    return $fetch<ApiResponse<null>>('/api/user/password/update', {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${token.value || ''}`

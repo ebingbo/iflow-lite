@@ -4,6 +4,15 @@ type (
 	ProcessGetInput struct {
 		ID uint64 `form:"id"`
 	}
+	ProcessDeleteInput struct {
+		ID uint64 `uri:"id"`
+	}
+	ProcessDisableInput struct {
+		ID uint64 `uri:"id"`
+	}
+	ProcessEnableInput struct {
+		ID uint64 `uri:"id"`
+	}
 	ProcessTakeInput struct {
 		Code string `form:"code"`
 	}
@@ -11,6 +20,11 @@ type (
 		Code        string `json:"code" form:"code" binding:"required" example:"product-add-code"`
 		Name        string `json:"name" form:"name" binding:"required" example:"product-a"`
 		Description string `json:"description" form:"description" binding:"required" example:"product-add-description"`
+	}
+	ProcessUpdateInput struct {
+		ID          uint64 `json:"id" binding:"required" `
+		Name        string `json:"name" form:"name" binding:"required"`
+		Description string `json:"description" form:"description" binding:"required"`
 	}
 	ProcessQueryInput struct {
 		Page   int    `json:"page" form:"page" binding:"required" example:"1"`  // 页码，从1开始

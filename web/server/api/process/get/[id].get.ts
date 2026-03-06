@@ -1,4 +1,5 @@
 import type { ApiResponse } from '~/types/api'
+import type { Process } from '~/types/process'
 import { backendFetch, ensureApiSuccess } from '~~/server/utils/backend'
 
 export default eventHandler(async (event) => {
@@ -11,9 +12,9 @@ export default eventHandler(async (event) => {
     })
   }
 
-  const response = await backendFetch<ApiResponse<null>>(event, `/api/process/delete/${id}`, {
-    method: 'POST'
+  const response = await backendFetch<ApiResponse<Process>>(event, `/api/process/get?id=${id}`, {
+    method: 'GET'
   })
 
-  return ensureApiSuccess(response, 'Process delete failed', 502)
+  return ensureApiSuccess(response, 'Process get failed', 502)
 })

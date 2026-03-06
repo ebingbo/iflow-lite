@@ -6,6 +6,7 @@ import (
 
 	"iflow-lite/core/bootstrap/client"
 	"iflow-lite/core/bootstrap/logger"
+	"iflow-lite/core/constant"
 	"iflow-lite/type/model"
 
 	"gorm.io/gorm"
@@ -29,6 +30,33 @@ func (*ProcessDao) ProcessGet(ctx context.Context, id uint64) (*model.Process, e
 		return nil, err
 	}
 	return m, nil
+}
+
+func (*ProcessDao) ProcessDelete(ctx context.Context, id uint64) error {
+	m := &model.Process{ID: id}
+	if err := client.MysqlDB.WithContext(ctx).Delete(m).Error; err != nil {
+		logger.ServiceLogger.WithContext(ctx).Errorf("process delete error: %+v", err)
+		return err
+	}
+	return nil
+}
+
+func (*ProcessDao) ProcessDisable(ctx context.Context, id uint64) error {
+	m := &model.Process{ID: id}
+	if err := client.MysqlDB.WithContext(ctx).Model(m).Update("status", constant.ProcessStatusDisabled).Error; err != nil {
+		logger.ServiceLogger.WithContext(ctx).Errorf("process disable error: %+v", err)
+		return err
+	}
+	return nil
+}
+
+func (*ProcessDao) ProcessEnable(ctx context.Context, id uint64) error {
+	m := &model.Process{ID: id}
+	if err := client.MysqlDB.WithContext(ctx).Model(m).Update("status", constant.ProcessStatusEnabled).Error; err != nil {
+		logger.ServiceLogger.WithContext(ctx).Errorf("process enable error: %+v", err)
+		return err
+	}
+	return nil
 }
 
 func (*ProcessDao) ProcessTake(ctx context.Context, code string) (*model.Process, error) {
@@ -87,4 +115,12 @@ func (*ProcessDao) ProcessQuery(ctx context.Context, cond map[string]interface{}
 		}
 	}
 	return items, total, nil
+}
+
+func (*ProcessDao) ProcessUpdate(ctx context.Context, m *model.Process) error {
+	if err := client.MysqlDB.WithContext(ctx).Save(m).Error; err != nil {
+		logger.ServiceLogger.WithContext(ctx).Errorf("process update error: %+v", err)
+		return err
+	}
+	return nil
 }

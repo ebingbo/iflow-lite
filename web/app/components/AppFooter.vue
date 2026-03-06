@@ -1,57 +1,55 @@
 <script setup lang="ts">
 const columns = [{
-  label: 'Resources',
+  label: '产品',
   children: [{
-    label: 'Help center'
+    label: '流程管理',
+    to: '/process'
   }, {
-    label: 'Docs'
+    label: '文档中心',
+    to: '/docs'
   }, {
-    label: 'Roadmap'
+    label: '更新日志',
+    to: '/changelog'
   }, {
-    label: 'Changelog'
+    label: '博客',
+    to: '/blog'
   }]
 }, {
-  label: 'Features',
+  label: '能力',
   children: [{
-    label: 'Affiliates'
+    label: '流程定义'
   }, {
-    label: 'Portal'
+    label: '任务执行'
   }, {
-    label: 'Jobs'
+    label: '权限角色'
   }, {
-    label: 'Sponsors'
+    label: '日志审计'
   }]
 }, {
-  label: 'Company',
+  label: '项目',
   children: [{
-    label: 'About'
+    label: 'GitHub 仓库',
+    to: 'https://github.com/ebingbo/iflow-lite',
+    target: '_blank'
   }, {
-    label: 'Pricing'
+    label: '开源协议',
+    to: '/docs',
+    target: '_blank'
   }, {
-    label: 'Careers'
+    label: '问题反馈',
+    to: 'https://github.com/ebingbo/iflow-lite/issues',
+    target: '_blank'
   }, {
-    label: 'Blog'
+    label: '参与贡献',
+    to: 'https://github.com/ebingbo/iflow-lite',
+    target: '_blank'
   }]
 }]
-
-const toast = useToast()
-
-const email = ref('')
-const loading = ref(false)
-
-function onSubmit() {
-  loading.value = true
-
-  toast.add({
-    title: 'Subscribed!',
-    description: 'You\'ve been subscribed to our newsletter.'
-  })
-}
 </script>
 
 <template>
   <USeparator
-    icon="i-simple-icons-nuxtdotjs"
+    icon="i-lucide-workflow"
     class="h-px"
   />
 
@@ -60,29 +58,26 @@ function onSubmit() {
       <UContainer>
         <UFooterColumns :columns="columns">
           <template #right>
-            <form @submit.prevent="onSubmit">
-              <UFormField
-                name="email"
-                label="Subscribe to our newsletter"
-                size="lg"
-              >
-                <UInput
-                  v-model="email"
-                  type="email"
-                  class="w-full"
-                  placeholder="Enter your email"
-                >
-                  <template #trailing>
-                    <UButton
-                      type="submit"
-                      size="xs"
-                      color="neutral"
-                      label="Subscribe"
-                    />
-                  </template>
-                </UInput>
-              </UFormField>
-            </form>
+            <div class="space-y-4 max-w-xs">
+              <p class="text-sm text-muted">
+                iFlow Lite 是一个轻量级流程管理与工作流引擎，适合快速构建企业内部流程系统。
+              </p>
+              <div class="flex gap-2">
+                <UButton
+                  to="/process"
+                  icon="i-lucide-arrow-right"
+                  label="进入流程管理"
+                  size="sm"
+                />
+                <UButton
+                  to="/docs"
+                  label="查看文档"
+                  color="neutral"
+                  variant="subtle"
+                  size="sm"
+                />
+              </div>
+            </div>
           </template>
         </UFooterColumns>
       </UContainer>
@@ -90,32 +85,31 @@ function onSubmit() {
 
     <template #left>
       <p class="text-muted text-sm">
-        Built with Nuxt UI • © {{ new Date().getFullYear() }}
+        iFlow Lite • Apache-2.0 • © {{ new Date().getFullYear() }}
       </p>
     </template>
 
     <template #right>
       <UButton
-        to="https://go.nuxt.com/discord"
+        to="https://github.com/ebingbo/iflow-lite/issues"
         target="_blank"
-        icon="i-simple-icons-discord"
-        aria-label="Nuxt on Discord"
+        icon="i-lucide-message-circle-warning"
+        aria-label="iFlow Lite Issues"
         color="neutral"
         variant="ghost"
       />
       <UButton
-        to="https://go.nuxt.com/x"
-        target="_blank"
-        icon="i-simple-icons-x"
-        aria-label="Nuxt on X"
+        to="/docs"
+        icon="i-lucide-book-open-text"
+        aria-label="iFlow Lite Docs"
         color="neutral"
         variant="ghost"
       />
       <UButton
-        to="https://github.com/nuxt-ui-templates/saas"
+        to="https://github.com/ebingbo/iflow-lite"
         target="_blank"
         icon="i-simple-icons-github"
-        aria-label="Nuxt UI on GitHub"
+        aria-label="iFlow Lite on GitHub"
         color="neutral"
         variant="ghost"
       />

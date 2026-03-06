@@ -21,6 +21,49 @@ func ProcessGet(ctx *gin.Context) {
 	}
 	http.JsonResponse(ctx, result)
 }
+
+func ProcessDisable(ctx *gin.Context) {
+	var in input.ProcessDisableInput
+	if err := ctx.ShouldBindUri(&in); err != nil {
+		http.JsonResponse(ctx, err)
+		return
+	}
+	result, err := service.DefaultProcessService.ProcessDisable(ctx.Request.Context(), &in)
+	if err != nil {
+		http.JsonResponse(ctx, err)
+		return
+	}
+	http.JsonResponse(ctx, result)
+}
+
+func ProcessEnable(ctx *gin.Context) {
+	var in input.ProcessEnableInput
+	if err := ctx.ShouldBindUri(&in); err != nil {
+		http.JsonResponse(ctx, err)
+		return
+	}
+	result, err := service.DefaultProcessService.ProcessEnable(ctx.Request.Context(), &in)
+	if err != nil {
+		http.JsonResponse(ctx, err)
+		return
+	}
+	http.JsonResponse(ctx, result)
+}
+
+func ProcessDelete(ctx *gin.Context) {
+	var in input.ProcessDeleteInput
+	if err := ctx.ShouldBindUri(&in); err != nil {
+		http.JsonResponse(ctx, err)
+		return
+	}
+	result, err := service.DefaultProcessService.ProcessDelete(ctx.Request.Context(), &in)
+	if err != nil {
+		http.JsonResponse(ctx, err)
+		return
+	}
+	http.JsonResponse(ctx, result)
+}
+
 func ProcessTake(ctx *gin.Context) {
 	var in input.ProcessTakeInput
 	if err := ctx.ShouldBindQuery(&in); err != nil {
@@ -47,7 +90,19 @@ func ProcessAdd(ctx *gin.Context) {
 	}
 	http.JsonResponse(ctx, result)
 }
-
+func ProcessUpdate(ctx *gin.Context) {
+	var in input.ProcessUpdateInput
+	if err := ctx.ShouldBindJSON(&in); err != nil {
+		http.JsonResponse(ctx, err)
+		return
+	}
+	result, err := service.DefaultProcessService.ProcessUpdate(ctx.Request.Context(), &in)
+	if err != nil {
+		http.JsonResponse(ctx, err)
+		return
+	}
+	http.JsonResponse(ctx, result)
+}
 func ProcessQuery(ctx *gin.Context) {
 	var in input.ProcessQueryInput
 	if err := ctx.ShouldBindJSON(&in); err != nil {

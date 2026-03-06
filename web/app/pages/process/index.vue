@@ -1,10 +1,8 @@
 <script setup lang="ts">
 import type { TableColumn } from '#ui/components/Table.vue'
-import type { Process, ProcessQueryData } from '~/types/process'
-import type { ApiResponse } from '~/types/api'
+import type { Process } from '~/types/process'
 import dayjs from 'dayjs'
-import type { Row, Table } from '@tanstack/vue-table'
-import { getPaginationRowModel } from '@tanstack/vue-table'
+import type { Row } from '@tanstack/vue-table'
 import type { ButtonProps } from '@nuxt/ui'
 import type { DropdownMenuItem } from '#ui/components/DropdownMenu.vue'
 
@@ -26,39 +24,13 @@ const links = ref<ButtonProps[]>([
     target: '_blank'
   }
 ])
-const toast = useToast()
 const UDropdownMenu = resolveComponent('UDropdownMenu')
 const UButton = resolveComponent('UButton')
 const UBadge = resolveComponent('UBadge')
-const table = useTemplateRef<{ tableApi?: Table<Process> }>('table')
-const pagination = ref({
-  pageIndex: 0,
-  pageSize: 10
-})
-
-const requestBody = computed(() => ({
-  page: pagination.value.pageIndex + 1,
-  size: pagination.value.pageSize
-}))
-
-const { data } = await useFetch<ApiResponse<ProcessQueryData>>('/api/process/query', {
-  key: 'process-query',
-  method: 'POST',
-  body: requestBody,
-  watch: [requestBody],
-  default: () => ({
-    code: 0,
-    message: 'ok',
-    data: {
-      total: 0,
-      items: []
-    }
-  }),
-  lazy: true
-})
-
-const tableData = computed(() => data.value?.data?.items || [])
-const total = computed(() => data.value?.data?.total || 0)
+const { pagination, items: tableData, total, loading, refresh } = await useProcessList()
+const { deleteProcessWithFeedback, toggleProcessStatusWithFeedback } = useProcessActions()
+const editOpen = ref(false)
+const editingProcess = ref<Process | null>(null)
 
 const columns: TableColumn<Process>[] = [
   {
@@ -143,42 +115,88 @@ const columns: TableColumn<Process>[] = [
 function getRowItems(row: Row<Process>) {
   const items: DropdownMenuItem[] = [
     {
-      label: '查看'
+      label: '查看',
+      onSelect() {
+        navigateTo(`/process/${row.original.id}`)
+      }
     },
     {
-      label: '编辑'
+      label: '编辑',
+      onSelect() {
+        openEditModal(row.original)
+      }
     },
     {
       type: 'separator'
     }
+
   ]
   if (row.original.status === 1) {
     items.push({
       label: '禁用',
-      onSelect() {
-        toast.add({
-          title: '已禁用',
-          color: 'success',
-          icon: 'i-lucide-circle-check'
-        })
+      async onSelect() {
+        await processAction(row.original.id, 'disable')
       }
     })
   } else {
     items.push({
-      label: '启用'
+      label: '启用',
+      async onSelect() {
+        await processAction(row.original.id, 'enable')
+      }
+    })
+    items.push({
+      label: '删除',
+      async onSelect() {
+        await processAction(row.original.id, 'delete')
+      }
     })
   }
   return items
 }
 
 const globalFilter = ref('')
+
+function openEditModal(process: Process) {
+  editingProcess.value = process
+  editOpen.value = true
+}
+
+async function refreshProcessQuery() {
+  await refresh()
+}
+
+async function processAction(id: number, action: 'enable' | 'disable' | 'delete') {
+  try {
+    if (action === 'delete') {
+      await deleteProcessWithFeedback(id)
+      return
+    }
+
+    await toggleProcessStatusWithFeedback(id, action)
+  } catch {
+    return
+  }
+}
+
+async function handleEditSuccess() {
+  editingProcess.value = null
+  await refreshProcessQuery()
+}
+
+function handleEditOpenUpdate(value: boolean) {
+  editOpen.value = value
+  if (!value) {
+    editingProcess.value = null
+  }
+}
 </script>
 
 <template>
   <UContainer>
     <UPageHeader
-      title="工作流程"
-      description="A responsive page header with title, description and actions."
+      title="流程定义管理"
+      description="集中管理流程定义，支持查看、筛选与维护流程状态。"
       :links="links"
     />
     <div class="flex justify-between py-3.5 border-b border-accented">
@@ -187,36 +205,31 @@ const globalFilter = ref('')
         class="max-w-sm"
         placeholder="Filter..."
       />
-      <UButton
-        icon="i-lucide-plus"
-        size="md"
-        color="primary"
-        variant="solid"
-      >
-        新建流程
-      </UButton>
+      <ProcessAddModal />
     </div>
     <UTable
-      ref="table"
       v-model:global-filter="globalFilter"
       sticky
-      loading
+      :loading="loading"
       loading-color="primary"
       loading-animation="carousel"
       :data="tableData"
       :columns="columns"
-      :pagination-options="{
-        getPaginationRowModel: getPaginationRowModel()
-      }"
       class="flex-1"
     />
     <div class="flex justify-end border-t border-default pt-4 px-4">
       <UPagination
-        :page="(table?.tableApi?.getState().pagination.pageIndex || 0) + 1"
-        :items-per-page="table?.tableApi?.getState().pagination.pageSize"
+        :page="(pagination.pageIndex || 0) + 1"
+        :items-per-page="pagination.pageSize"
         :total="total"
-        @update:page="(p: number) => table?.tableApi?.setPageIndex(p - 1)"
+        @update:page="(p: number) => { pagination.pageIndex = p - 1 }"
       />
     </div>
+    <ProcessEditModal
+      v-model:open="editOpen"
+      :process="editingProcess"
+      @success="handleEditSuccess"
+      @update:open="handleEditOpenUpdate"
+    />
   </UContainer>
 </template>

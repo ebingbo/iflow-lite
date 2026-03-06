@@ -3,21 +3,21 @@ const route = useRoute()
 
 const items = computed(() => [
   {
-    label: '流程',
+    label: '流程管理',
     to: '/process'
   },
   {
-    label: 'Docs',
+    label: '文档中心',
     to: '/docs',
     active: route.path.startsWith('/docs')
   }, {
     label: 'Pricing',
     to: '/pricing'
   }, {
-    label: 'Blog',
+    label: '博客',
     to: '/blog'
   }, {
-    label: 'Changelog',
+    label: '更新日志',
     to: '/changelog'
   }])
 const { user, logout } = useAuth()
@@ -60,7 +60,7 @@ const menus = computed(() => [
   <UHeader>
     <template #left>
       <NuxtLink to="/">
-        <AppLogo class="w-auto h-6 shrink-0" />
+        <AppLogo class="w-auto h-12 shrink-0" />
       </NuxtLink>
     </template>
 

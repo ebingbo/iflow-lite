@@ -2,7 +2,7 @@ export interface Process {
   id: number
   name: string
   code: string
-  description: string
+  description: string | null
   status: number
   created_by: number
   created_by_name: string
@@ -15,9 +15,9 @@ export interface Process {
 export interface ProcessQueryBody {
   page: number
   size: number
-  name: string
-  code: string
-  status: number
+  name?: string
+  code?: string
+  status?: number
 }
 
 export interface ProcessQueryData {
@@ -33,4 +33,10 @@ export interface ProcessAddBody {
 
 export interface ProcessDeleteBody {
   ids: number[]
+}
+
+export interface ProcessUpdateBody {
+  id: number
+  name: string
+  description: string
 }
