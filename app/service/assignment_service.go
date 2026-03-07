@@ -22,7 +22,26 @@ func NewAssignmentService() *AssignmentService {
 func (this *AssignmentService) AssignmentGet(ctx context.Context, in *input.AssignmentGetInput) (interface{}, error) {
 	return dao.DefaultAssignmentDao.AssignmentGet(ctx, in.ID)
 }
-
+func (this *AssignmentService) AssignmentDelete(ctx context.Context, in *input.AssignmentDeleteInput) (interface{}, error) {
+	if err := dao.DefaultAssignmentDao.AssignmentDelete(ctx, in.ID); err != nil {
+		return nil, err
+	}
+	return nil, nil
+}
+func (this *AssignmentService) AssignmentUpdate(ctx context.Context, in *input.AssignmentUpdateInput) (interface{}, error) {
+	m, err := dao.DefaultAssignmentDao.AssignmentGet(ctx, in.ID)
+	if err != nil {
+		return nil, err
+	}
+	m.Type = in.Type
+	m.Value = in.Value
+	m.Priority = in.Priority
+	m.Strategy = in.Strategy
+	if err := dao.DefaultAssignmentDao.AssignmentUpdate(ctx, m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
 func (this *AssignmentService) AssignmentAdd(ctx context.Context, in *input.AssignmentAddInput) (interface{}, error) {
 	process, err := dao.DefaultProcessDao.ProcessGet(ctx, in.ProcessID)
 	if err != nil {
@@ -85,4 +104,16 @@ func (this *AssignmentService) AssignmentQuery(ctx context.Context, in *input.As
 	result.Items = items
 	result.Total = total
 	return result, nil
+}
+
+func (this *AssignmentService) AssignmentList(ctx context.Context, in *input.AssignmentListInput) (interface{}, error) {
+	cond := map[string]interface{}{}
+	if in.ProcessID != 0 {
+		cond["process_id"] = in.ProcessID
+	}
+
+	if in.NodeID != 0 {
+		cond["node_id"] = in.NodeID
+	}
+	return dao.DefaultAssignmentDao.AssignmentList(ctx, cond)
 }

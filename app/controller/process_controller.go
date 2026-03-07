@@ -22,6 +22,20 @@ func ProcessGet(ctx *gin.Context) {
 	http.JsonResponse(ctx, result)
 }
 
+func ProcessGetByID(ctx *gin.Context) {
+	var in input.ProcessGetByIDInput
+	if err := ctx.ShouldBindUri(&in); err != nil {
+		http.JsonResponse(ctx, err)
+		return
+	}
+	result, err := service.DefaultProcessService.ProcessGetByID(ctx.Request.Context(), &in)
+	if err != nil {
+		http.JsonResponse(ctx, err)
+		return
+	}
+	http.JsonResponse(ctx, result)
+}
+
 func ProcessDisable(ctx *gin.Context) {
 	var in input.ProcessDisableInput
 	if err := ctx.ShouldBindUri(&in); err != nil {

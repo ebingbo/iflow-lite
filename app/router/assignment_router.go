@@ -11,4 +11,7 @@ func AssignmentRouterInit(e *gin.Engine) {
 	group.GET("/get", controller.AssignmentGet)
 	group.POST("/query", controller.AssignmentQuery)
 	group.POST("/add", controller.AssignmentAdd)
+	group.POST("/update", controller.AssignmentUpdate)
+	group.POST("/delete/:id", controller.AssignmentDelete)
+	group.POST("/list", controller.AssignmentList)
 }

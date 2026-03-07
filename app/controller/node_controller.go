@@ -1,8 +1,6 @@
 package controller
 
 import (
-	"fmt"
-
 	"iflow-lite/core/http"
 	"iflow-lite/service"
 	"iflow-lite/type/input"
@@ -21,7 +19,6 @@ func NodeGet(ctx *gin.Context) {
 		http.JsonResponse(ctx, err)
 		return
 	}
-	fmt.Println(ctx.Get("userID"))
 	http.JsonResponse(ctx, result)
 }
 
@@ -32,6 +29,34 @@ func NodeAdd(ctx *gin.Context) {
 		return
 	}
 	result, err := service.DefaultNodeService.NodeAdd(ctx.Request.Context(), &in)
+	if err != nil {
+		http.JsonResponse(ctx, err)
+		return
+	}
+	http.JsonResponse(ctx, result)
+}
+
+func NodeUpdate(ctx *gin.Context) {
+	var in input.NodeUpdateInput
+	if err := ctx.ShouldBindJSON(&in); err != nil {
+		http.JsonResponse(ctx, err)
+		return
+	}
+	result, err := service.DefaultNodeService.NodeUpdate(ctx.Request.Context(), &in)
+	if err != nil {
+		http.JsonResponse(ctx, err)
+		return
+	}
+	http.JsonResponse(ctx, result)
+}
+
+func NodeDelete(ctx *gin.Context) {
+	var in input.NodeDeleteInput
+	if err := ctx.ShouldBindUri(&in); err != nil {
+		http.JsonResponse(ctx, err)
+		return
+	}
+	result, err := service.DefaultNodeService.NodeDelete(ctx.Request.Context(), &in)
 	if err != nil {
 		http.JsonResponse(ctx, err)
 		return

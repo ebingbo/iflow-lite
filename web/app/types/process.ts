@@ -1,3 +1,7 @@
+import type { Assignment } from '~/types/assignment'
+import type { Node } from '~/types/node'
+import type { Transition } from '~/types/transition'
+
 export interface Process {
   id: number
   name: string
@@ -31,12 +35,15 @@ export interface ProcessAddBody {
   description: string
 }
 
-export interface ProcessDeleteBody {
-  ids: number[]
-}
-
 export interface ProcessUpdateBody {
   id: number
   name: string
   description: string
+}
+
+export interface ProcessGetData {
+  process: Process | null
+  nodes: Node[]
+  transitions: Transition[]
+  assignments: Assignment[]
 }

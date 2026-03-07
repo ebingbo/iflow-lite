@@ -1,11 +1,21 @@
 <script setup lang="ts">
-import dayjs from 'dayjs'
+import type { Assignment } from '~/types/assignment'
 import { type Node, type NodeType, nodeTypeConfigs } from '~/types/node'
 import type { Transition } from '~/types/transition'
 
+type WorkflowNode = Node & { _draft?: boolean }
+type WorkflowEdge = Transition & { _draft?: boolean }
+
 const route = useRoute()
 const { getProcess } = useProcessApi()
+const { addNode, updateNode, deleteNode: deleteNodeApi } = useNodeApi()
+const { addTransition, deleteTransition } = useTransitionApi()
+const { addAssignment, updateAssignment, deleteAssignment } = useAssignmentApi()
+const toast = useToast()
 const id = computed(() => Number(route.params.id))
+const NODE_WIDTH = 160
+const NODE_SPACING_X = 240
+const NODE_SPACING_Y = 160
 
 if (!Number.isInteger(id.value) || id.value <= 0) {
   throw createError({
@@ -14,15 +24,37 @@ if (!Number.isInteger(id.value) || id.value <= 0) {
   })
 }
 
-const { data: process, status, error } = await useAsyncData(
-  `process-get-${id.value}`,
+const {
+  data: detailData,
+  status,
+  error,
+  refresh
+} = await useAsyncData(
+  `process-detail-${id.value}`,
   () => getProcess(id.value),
   {
     lazy: true
   }
 )
 
+const process = computed(() => detailData.value?.process ?? null)
 const loading = computed(() => ['idle', 'pending'].includes(status.value))
+const workflowLoading = computed(() => loading.value && nodes.value.length === 0 && edges.value.length === 0)
+const workflowLoaded = computed(() => !workflowLoading.value && !error.value)
+const processDescription = computed(() => process.value?.description || '流程查看与配置')
+const processCode = computed(() => process.value?.code || '未配置编码')
+const processStatusLabel = computed(() => process.value?.status === 1 ? '正常' : '禁用')
+const processStatusColor = computed(() => process.value?.status === 1 ? 'success' : 'neutral')
+const nodeTypeOptions = computed(() => {
+  return Object.entries(nodeTypeConfigs).map(([value, config]) => ({
+    label: config.name,
+    value
+  }))
+})
+const assignTypeOptions = [
+  { label: '指定用户', value: 'user' },
+  { label: '指定角色', value: 'role' }
+] as const
 
 useSeoMeta({
   title: computed(() => process.value?.name ? `流程详情 - ${process.value.name}` : '流程详情'),
@@ -30,92 +62,282 @@ useSeoMeta({
 })
 
 // 状态
-const flowMode = ref<'node' | 'stage'>('node')
 const showConfig = ref(true)
 const scale = ref(1)
 const offset = ref({ x: 0, y: 0 })
+const savingNode = ref(false)
+const savingAssignment = ref(false)
+const creatingNode = ref(false)
+const deletingNode = ref(false)
+const draftNodeSeed = ref(-1)
+const lastPickedNodeType = ref<NodeType | null>(null)
 
 // 节点数据
-const nodes = ref<Node[]>([
-  { id: 1, x: 250, y: 50, name: '流程开始', type: 'start', assignType: null, assignTo: [] },
-  { id: 2, x: 250, y: 180, name: '需求评审', type: 'user_task', assignType: 'role', assignTo: ['产品经理'] },
-  { id: 3, x: 100, y: 320, name: '前端开发', type: 'user_task', assignType: 'user', assignTo: ['张三'] },
-  { id: 4, x: 400, y: 320, name: '后端开发', type: 'user_task', assignType: 'user', assignTo: ['李四'] },
-  { id: 5, x: 250, y: 460, name: '开发汇总', type: 'join', assignType: null, assignTo: [] },
-  { id: 6, x: 250, y: 590, name: '测试验收', type: 'user_task', assignType: 'role', assignTo: ['测试工程师'] },
-  { id: 7, x: 250, y: 720, name: '流程结束', type: 'end', assignType: null, assignTo: [] }
-])
-
-const edges = ref<Transition[]>([
-  { from_node_id: 1, to_node_id: 2 },
-  { from_node_id: 2, to_node_id: 3 },
-  { from_node_id: 2, to_node_id: 4 },
-  { from_node_id: 3, to_node_id: 5 },
-  { from_node_id: 4, to_node_id: 5 },
-  { from_node_id: 5, to_node_id: 6 },
-  { from_node_id: 6, to_node_id: 7 }
-])
+const nodes = ref<WorkflowNode[]>([])
+const edges = ref<WorkflowEdge[]>([])
+const assignments = ref<Assignment[]>([])
 
 // 计算属性
 const currentNodes = computed(() => nodes.value)
 const currentEdges = computed(() => edges.value)
+const nodeById = computed(() => new Map(currentNodes.value.filter(node => !!node.id).map(node => [node.id!, node])))
+const viewBounds = computed(() => {
+  if (!canvasRef.value || currentNodes.value.length === 0) {
+    return { x: 0, y: 0, width: 1000, height: 800 }
+  }
+
+  const rect = canvasRef.value.getBoundingClientRect()
+  return {
+    x: -offset.value.x / scale.value,
+    y: -offset.value.y / scale.value,
+    width: rect.width / scale.value,
+    height: rect.height / scale.value
+  }
+})
 
 // 交互状态
-const selectedNode = ref<Node | null>(null)
-const draggingNode = ref<{ node: Node, offsetX: number, offsetY: number } | null>(null)
-const connectingFrom = ref<Node | null>(null)
+const selectedNode = ref<WorkflowNode | null>(null)
+const draggingNode = ref<{ node: WorkflowNode, offsetX: number, offsetY: number } | null>(null)
+const connectingFrom = ref<WorkflowNode | null>(null)
 const connectingLine = ref<{ x1: number, y1: number, x2: number, y2: number } | null>(null)
 const isPanning = ref(false)
 const panStart = ref({ x: 0, y: 0 })
 const canvasRef = ref<HTMLDivElement | null>(null)
-
-// ✅ 核心修改:动态计算 viewBox
-const viewBox = computed(() => {
-  if (!canvasRef.value || currentNodes.value.length === 0) {
-    return '0 0 1000 800'
+const configTab = ref('node')
+const configTabItems = computed(() => [
+  {
+    label: '节点配置',
+    value: 'node'
+  },
+  {
+    label: '分派配置',
+    value: 'assignment',
+    disabled: !selectedNode.value || !!selectedNode.value._draft
   }
+])
 
-  const rect = canvasRef.value.getBoundingClientRect()
-
-  // 通过 offset 和 scale 计算当前视口在 SVG 坐标系中的位置和大小
-  const viewportX = -offset.value.x / scale.value
-  const viewportY = -offset.value.y / scale.value
-  const viewportWidth = rect.width / scale.value
-  const viewportHeight = rect.height / scale.value
-
-  return `${viewportX} ${viewportY} ${viewportWidth} ${viewportHeight}`
+const viewBox = computed(() => {
+  return `${viewBounds.value.x} ${viewBounds.value.y} ${viewBounds.value.width} ${viewBounds.value.height}`
 })
 
 // 工具函数
-const getNodeHeight = (node: Node): number => {
+const isSupportedNodeType = (type: string): type is NodeType => {
+  return type === 'start' || type === 'end' || type === 'user_task' || type === 'join'
+}
+
+const normalizeNodeType = (type: string | undefined): NodeType => {
+  return type && isSupportedNodeType(type) ? type : 'user_task'
+}
+
+const getNodeHeaderClass = (type: string | undefined) => {
+  const normalizedType = normalizeNodeType(type)
+  return nodeTypeConfigs[normalizedType].canvasFill
+}
+
+const getNodeRingClass = (type: string | undefined) => {
+  const normalizedType = normalizeNodeType(type)
+  const classes: Record<NodeType, string> = {
+    start: 'stroke-success/50',
+    end: 'stroke-error/50',
+    user_task: 'stroke-primary/50',
+    join: 'stroke-warning/50'
+  }
+  return classes[normalizedType]
+}
+
+const getNodeHeight = (node: WorkflowNode): number => {
   return node.type === 'user_task' && node.assignTo && node.assignTo.length > 0 ? 85 : 70
 }
 
-const getEdgePath = (edge: Transition): string => {
-  const fromNode = currentNodes.value.find(n => n.id === edge.from_node_id)
-  const toNode = currentNodes.value.find(n => n.id === edge.to_node_id)
-  if (!fromNode || !toNode) return ''
+const getEdgeNodes = (edge: WorkflowEdge) => {
+  if (!edge.from_node_id || !edge.to_node_id) return null
+  const fromNode = nodeById.value.get(edge.from_node_id)
+  const toNode = nodeById.value.get(edge.to_node_id)
+  if (!fromNode || !toNode) return null
+  return { fromNode, toNode }
+}
 
-  const x1 = fromNode.x + 80
+const getEdgePath = (fromNode: WorkflowNode, toNode: WorkflowNode): string => {
+  const x1 = fromNode.x + NODE_WIDTH / 2
   const y1 = fromNode.y + getNodeHeight(fromNode)
-  const x2 = toNode.x + 80
+  const x2 = toNode.x + NODE_WIDTH / 2
   const y2 = toNode.y
   const midY = (y1 + y2) / 2
 
   return `M ${x1} ${y1} L ${x1} ${midY} L ${x2} ${midY} L ${x2} ${y2}`
 }
-const getEdgeMidpoint = (edge: Transition): { x: number, y: number } => {
-  const fromNode = currentNodes.value.find(n => n.id === edge.from_node_id)
-  const toNode = currentNodes.value.find(n => n.id === edge.to_node_id)
-  if (!fromNode || !toNode) return { x: 0, y: 0 }
-  const x1 = fromNode.x + 80
+const getEdgeMidpoint = (fromNode: WorkflowNode, toNode: WorkflowNode): { x: number, y: number } => {
+  const x1 = fromNode.x + NODE_WIDTH / 2
   const y1 = fromNode.y + getNodeHeight(fromNode)
-  const x2 = toNode.x + 80
+  const x2 = toNode.x + NODE_WIDTH / 2
   const y2 = toNode.y
   return { x: (x1 + x2) / 2, y: (y1 + y2) / 2 }
 }
+
+const renderedEdges = computed(() => {
+  return currentEdges.value.map((edge, index) => {
+    const result = getEdgeNodes(edge)
+    if (!result) return null
+    const { fromNode, toNode } = result
+
+    return {
+      key: `${edge.from_node_id}-${edge.to_node_id}-${index}`,
+      edge,
+      path: getEdgePath(fromNode, toNode),
+      midpoint: getEdgeMidpoint(fromNode, toNode)
+    }
+  }).filter((item): item is NonNullable<typeof item> => !!item)
+})
+
+const buildAutoLayout = (rawNodes: WorkflowNode[], rawEdges: WorkflowEdge[]) => {
+  const nodeIds = rawNodes
+    .map(item => item.id)
+    .filter((item): item is number => typeof item === 'number')
+  const idSet = new Set(nodeIds)
+  const indegree = new Map<number, number>()
+  const adjacency = new Map<number, number[]>()
+
+  for (const nodeId of nodeIds) {
+    indegree.set(nodeId, 0)
+    adjacency.set(nodeId, [])
+  }
+
+  for (const edge of rawEdges) {
+    const fromId = edge.from_node_id
+    const toId = edge.to_node_id
+    if (!fromId || !toId || !idSet.has(fromId) || !idSet.has(toId)) continue
+    adjacency.get(fromId)?.push(toId)
+    indegree.set(toId, (indegree.get(toId) ?? 0) + 1)
+  }
+
+  const roots = nodeIds.filter(nodeId => (indegree.get(nodeId) ?? 0) === 0)
+  const queue = roots.length > 0 ? [...roots] : [...nodeIds.slice(0, 1)]
+  const levelMap = new Map<number, number>()
+  const visited = new Set<number>()
+
+  for (const root of queue) {
+    levelMap.set(root, 0)
+    visited.add(root)
+  }
+
+  while (queue.length > 0) {
+    const current = queue.shift()!
+    const currentLevel = levelMap.get(current) ?? 0
+    const nextNodes = adjacency.get(current) ?? []
+
+    for (const next of nextNodes) {
+      const nextLevel = currentLevel + 1
+      if (!levelMap.has(next) || (levelMap.get(next) ?? 0) < nextLevel) {
+        levelMap.set(next, nextLevel)
+      }
+      if (!visited.has(next)) {
+        queue.push(next)
+        visited.add(next)
+      }
+    }
+  }
+
+  let fallbackLevel = Math.max(...Array.from(levelMap.values(), levelMapValue => levelMapValue), -1) + 1
+  for (const nodeId of nodeIds) {
+    if (!levelMap.has(nodeId)) {
+      levelMap.set(nodeId, fallbackLevel++)
+    }
+  }
+
+  const groupedByLevel = new Map<number, number[]>()
+  for (const nodeId of nodeIds) {
+    const level = levelMap.get(nodeId) ?? 0
+    const bucket = groupedByLevel.get(level) ?? []
+    bucket.push(nodeId)
+    groupedByLevel.set(level, bucket)
+  }
+
+  const layout = new Map<number, { x: number, y: number }>()
+  const levels = Array.from(groupedByLevel.keys()).sort((a, b) => a - b)
+  for (const level of levels) {
+    const bucket = (groupedByLevel.get(level) ?? []).sort((a, b) => a - b)
+    bucket.forEach((nodeId, idx) => {
+      layout.set(nodeId, {
+        x: 80 + idx * NODE_SPACING_X,
+        y: 80 + level * NODE_SPACING_Y
+      })
+    })
+  }
+
+  return layout
+}
+
+const normalizeNodes = (rawNodes: WorkflowNode[], rawEdges: WorkflowEdge[], rawAssignments: Assignment[]): WorkflowNode[] => {
+  const autoLayout = buildAutoLayout(rawNodes, rawEdges)
+  const assignmentMap = new Map<number, Assignment[]>()
+
+  for (const item of rawAssignments) {
+    const list = assignmentMap.get(item.node_id) ?? []
+    list.push(item)
+    assignmentMap.set(item.node_id, list)
+  }
+
+  return rawNodes.map((item, index) => {
+    const normalizedType = normalizeNodeType(item.type)
+    const autoPosition = item.id ? autoLayout.get(item.id) : null
+    const x = typeof item.x === 'number' ? item.x : (autoPosition?.x ?? 80 + (index % 4) * NODE_SPACING_X)
+    const y = typeof item.y === 'number' ? item.y : (autoPosition?.y ?? 80 + Math.floor(index / 4) * NODE_SPACING_Y)
+    const nodeAssignments = item.id ? (assignmentMap.get(item.id) ?? []) : []
+    const assignType = nodeAssignments[0]?.type as Node['assignType'] | undefined
+    const assignTo = nodeAssignments.map(assignment => assignment.value).filter(Boolean)
+
+    return {
+      ...item,
+      id: item.id ?? Date.now() + index,
+      type: normalizedType,
+      x,
+      y,
+      assignType: item.assignType ?? assignType ?? (normalizedType === 'user_task' ? 'user' : null),
+      assignTo: Array.isArray(item.assignTo) && item.assignTo.length > 0 ? item.assignTo : assignTo
+    }
+  })
+}
+
+const normalizeTransitions = (rawEdges: WorkflowEdge[], normalizedNodes: WorkflowNode[]) => {
+  const validNodeIds = new Set(normalizedNodes.map(item => item.id).filter((item): item is number => typeof item === 'number'))
+
+  return rawEdges.filter((edge) => {
+    return !!edge.from_node_id
+      && !!edge.to_node_id
+      && edge.from_node_id !== edge.to_node_id
+      && validNodeIds.has(edge.from_node_id)
+      && validNodeIds.has(edge.to_node_id)
+  })
+}
+
+watch(
+  () => detailData.value,
+  async (payload) => {
+    if (!payload) return
+
+    const normalizedNodes = normalizeNodes(payload.nodes ?? [], payload.transitions ?? [], payload.assignments ?? [])
+    nodes.value = normalizedNodes
+    edges.value = normalizeTransitions(payload.transitions ?? [], normalizedNodes)
+    assignments.value = payload.assignments ?? []
+    selectedNode.value = null
+
+    await nextTick()
+    resetView()
+  },
+  { immediate: true }
+)
+
+watch(
+  () => selectedNode.value,
+  (node) => {
+    if (!node || node._draft) {
+      configTab.value = 'node'
+    }
+  }
+)
+
 // 事件处理
-const handleNodeMouseDown = (e: MouseEvent, node: Node) => {
+const handleNodeMouseDown = (e: MouseEvent, node: WorkflowNode) => {
   e.preventDefault()
   if (e.shiftKey) {
     connectingFrom.value = node
@@ -129,7 +351,7 @@ const handleNodeMouseDown = (e: MouseEvent, node: Node) => {
   }
   selectedNode.value = node
 }
-const handleNodeMouseUp = (e: MouseEvent, node: Node) => {
+const handleNodeMouseUp = (e: MouseEvent, node: WorkflowNode) => {
   e.preventDefault() // ✅ 防止默认行为
 
   if (connectingFrom.value && connectingFrom.value.id !== node.id) {
@@ -137,7 +359,27 @@ const handleNodeMouseUp = (e: MouseEvent, node: Node) => {
     const exists = edgeList.some(edge => edge.from_node_id === connectingFrom.value!.id && edge.to_node_id === node.id)
 
     if (!exists) {
-      edges.value.push({ from_node_id: connectingFrom.value.id, to_node_id: node.id })
+      if (connectingFrom.value._draft || node._draft) {
+        edges.value.push({
+          from_node_id: connectingFrom.value.id,
+          to_node_id: node.id,
+          _draft: true
+        })
+      } else {
+        addTransition({
+          process_id: id.value,
+          from_node_id: connectingFrom.value.id,
+          to_node_id: node.id
+        }).then((created) => {
+          edges.value.push(created)
+        }).catch((err: unknown) => {
+          toast.add({
+            title: '连线失败',
+            description: err instanceof Error ? err.message : '创建连线失败',
+            color: 'error'
+          })
+        })
+      }
     }
   }
 
@@ -157,11 +399,14 @@ const handleMouseMove = (e: MouseEvent) => {
     const nodeList = nodes.value
     const index = nodeList.findIndex(n => n.id === draggingNode.value!.node.id)
     if (index !== -1) {
+      const currentNode = nodeList[index]
+      if (!currentNode) return
+
       // 保持节点中心在鼠标位置
       nodeList[index] = {
-        ...nodeList[index],
-        x: svgX - 80, // 节点宽度一半
-        y: svgY - getNodeHeight(nodeList[index]) / 2
+        ...currentNode,
+        x: svgX - NODE_WIDTH / 2,
+        y: svgY - getNodeHeight(currentNode) / 2
       }
     }
   } else if (connectingFrom.value && canvasRef.value) {
@@ -192,7 +437,8 @@ const handleMouseUp = () => {
 }
 const handleCanvasMouseDown = (e: MouseEvent) => {
   const target = e.target as HTMLElement
-  if (target === canvasRef.value || target.tagName === 'svg' || target.tagName === 'rect') {
+  const tagName = target.tagName.toLowerCase()
+  if (target === canvasRef.value || tagName === 'svg' || tagName === 'rect') {
     isPanning.value = true
     panStart.value = {
       x: e.clientX - offset.value.x,
@@ -202,35 +448,115 @@ const handleCanvasMouseDown = (e: MouseEvent) => {
   }
 }
 // 操作函数
-const addNewNode = (type: NodeType) => {
-  const newNode: Node = {
-    id: Date.now(),
+const addNewNode = async (type: NodeType) => {
+  lastPickedNodeType.value = type
+  const newNode: WorkflowNode = {
+    id: draftNodeSeed.value,
     x: (300 - offset.value.x) / scale.value,
     y: (200 - offset.value.y) / scale.value,
     name: nodeTypeConfigs[type].name,
+    tag: '',
+    code: '',
+    process_id: id.value,
+    process_code: process.value?.code || '',
+    description: null,
     type,
+    created_by: 0,
+    created_by_name: '',
+    updated_by: 0,
+    updated_by_name: '',
+    created_at: '',
+    updated_at: '',
     assignType: type === 'user_task' ? 'user' : null,
-    assignTo: []
+    assignTo: [],
+    _draft: true
   }
+  draftNodeSeed.value -= 1
   nodes.value.push(newNode)
+  selectedNode.value = newNode
 }
-const deleteNode = () => {
+const deleteNode = async () => {
   if (!selectedNode.value) return
+  if (deletingNode.value) return
+  deletingNode.value = true
+
+  const deletingNodeId = selectedNode.value.id
+  if (!deletingNodeId) {
+    deletingNode.value = false
+    return
+  }
+
+  if (selectedNode.value._draft) {
+    nodes.value = nodes.value.filter(n => n.id !== deletingNodeId)
+    edges.value = edges.value.filter(
+      e => e.from_node_id !== deletingNodeId && e.to_node_id !== deletingNodeId
+    )
+    assignments.value = assignments.value.filter(item => item.node_id !== deletingNodeId)
+    selectedNode.value = null
+    deletingNode.value = false
+    return
+  }
+
+  const relatedEdges = edges.value.filter(
+    edge => edge.from_node_id === deletingNodeId || edge.to_node_id === deletingNodeId
+  )
+  const relatedAssignments = assignments.value.filter(item => item.node_id === deletingNodeId)
+
+  try {
+    await Promise.all([
+      ...relatedEdges.filter(edge => edge.id).map(edge => deleteTransition(edge.id!)),
+      ...relatedAssignments.filter(item => item.id).map(item => deleteAssignment(item.id))
+    ])
+    await deleteNodeApi(deletingNodeId)
+  } catch (err: unknown) {
+    toast.add({
+      title: '删除节点失败',
+      description: err instanceof Error ? err.message : '删除节点失败',
+      color: 'error'
+    })
+    deletingNode.value = false
+    return
+  }
+
   nodes.value = nodes.value.filter(n => n.id !== selectedNode.value!.id)
   edges.value = edges.value.filter(
     e => e.from_node_id !== selectedNode.value!.id && e.to_node_id !== selectedNode.value!.id
   )
+  assignments.value = assignments.value.filter(item => item.node_id !== selectedNode.value!.id)
   selectedNode.value = null
+  deletingNode.value = false
 }
-const deleteEdge = (from: number, to: number) => {
+const deleteEdge = async (from: number, to: number) => {
+  const target = edges.value.find(edge => edge.from_node_id === from && edge.to_node_id === to)
+  if (!target) return
+
+  if (target.id) {
+    try {
+      await deleteTransition(target.id)
+    } catch (err: unknown) {
+      toast.add({
+        title: '删除连线失败',
+        description: err instanceof Error ? err.message : '删除连线失败',
+        color: 'error'
+      })
+      return
+    }
+  }
+
   edges.value = edges.value.filter(e => !(e.from_node_id === from && e.to_node_id === to))
 }
-const updateNodeField = (field: keyof Node, value: any) => {
+const updateNodeField = <K extends keyof WorkflowNode>(field: K, value: WorkflowNode[K]) => {
   if (!selectedNode.value) return
   const nodeList = nodes.value
   const index = nodeList.findIndex(n => n.id === selectedNode.value!.id)
   if (index !== -1) {
-    (nodeList[index] as any)[field] = value
+    const currentNode = nodeList[index]
+    if (!currentNode) return
+
+    nodeList[index] = {
+      ...currentNode,
+      [field]: value
+    }
   }
 }
 const addAssignee = () => {
@@ -243,10 +569,188 @@ const removeAssignee = (index: number) => {
   selectedNode.value.assignTo.splice(index, 1)
   updateNodeField('assignTo', selectedNode.value.assignTo)
 }
-const switchMode = (mode: 'node' | 'stage') => {
-  flowMode.value = mode
-  selectedNode.value = null
+
+const saveNodeConfig = async () => {
+  if (!selectedNode.value) return
+  if (savingNode.value) return
+
+  savingNode.value = true
+  let current = selectedNode.value
+  const isDraftBeforeSave = !!current._draft
+
+  try {
+    if (current._draft) {
+      const name = current.name?.trim()
+      const code = current.code?.trim()
+      const tag = current.tag?.trim()
+      if (!name || !code || !tag || !current.type) {
+        toast.add({
+          title: '请完善节点信息',
+          description: '草稿节点创建前，名称/编码/标签/类型均为必填',
+          color: 'warning'
+        })
+        savingNode.value = false
+        return
+      }
+
+      creatingNode.value = true
+      const created = await addNode({
+        process_id: id.value,
+        process_code: process.value?.code,
+        tag,
+        name,
+        code,
+        type: current.type,
+        description: current.description || ''
+      })
+      creatingNode.value = false
+
+      const oldNodeID = current.id
+      const persistedNode: WorkflowNode = {
+        ...current,
+        ...created,
+        id: created.id,
+        x: current.x,
+        y: current.y,
+        assignType: current.assignType,
+        assignTo: current.assignTo,
+        _draft: false
+      }
+
+      nodes.value = nodes.value.map(item => item.id === oldNodeID ? persistedNode : item)
+      edges.value = edges.value.map(edge => ({
+        ...edge,
+        from_node_id: edge.from_node_id === oldNodeID ? created.id : edge.from_node_id,
+        to_node_id: edge.to_node_id === oldNodeID ? created.id : edge.to_node_id
+      }))
+      current = persistedNode
+      selectedNode.value = persistedNode
+    } else {
+      await updateNode({
+        id: current.id,
+        tag: current.tag || current.name,
+        description: current.description || ''
+      })
+    }
+
+    const draftEdges = edges.value.filter(edge => !edge.id)
+    for (const edge of draftEdges) {
+      if (!edge.from_node_id || !edge.to_node_id) continue
+      const fromNode = nodes.value.find(item => item.id === edge.from_node_id)
+      const toNode = nodes.value.find(item => item.id === edge.to_node_id)
+      if (!fromNode || !toNode || fromNode._draft || toNode._draft) continue
+
+      const existsPersisted = edges.value.some(item =>
+        !!item.id
+        && item.from_node_id === edge.from_node_id
+        && item.to_node_id === edge.to_node_id
+      )
+      if (existsPersisted) {
+        edges.value = edges.value.filter(item => item !== edge)
+        continue
+      }
+
+      const createdEdge = await addTransition({
+        process_id: id.value,
+        from_node_id: edge.from_node_id,
+        to_node_id: edge.to_node_id
+      })
+      edges.value = edges.value.map(item => item === edge ? createdEdge : item)
+    }
+
+    toast.add({
+      title: isDraftBeforeSave ? '创建成功' : '保存成功',
+      description: isDraftBeforeSave ? '草稿节点已创建' : '节点配置已保存',
+      color: 'success'
+    })
+  } catch (err: unknown) {
+    toast.add({
+      title: '保存失败',
+      description: err instanceof Error ? err.message : '保存节点配置失败',
+      color: 'error'
+    })
+  } finally {
+    creatingNode.value = false
+    savingNode.value = false
+  }
 }
+
+const saveAssignmentConfig = async () => {
+  if (!selectedNode.value) return
+  if (selectedNode.value._draft) {
+    toast.add({
+      title: '请先创建节点',
+      description: '草稿节点创建后才能保存分派',
+      color: 'warning'
+    })
+    return
+  }
+  if (savingAssignment.value) return
+
+  savingAssignment.value = true
+  const current = selectedNode.value
+
+  try {
+    const currentNodeAssignments = assignments.value.filter(item => item.node_id === current.id)
+    const targetAssignValues = (current.assignTo ?? []).map(item => item.trim()).filter(Boolean)
+    const targetAssignType = current.assignType || 'user'
+
+    const minLength = Math.min(currentNodeAssignments.length, targetAssignValues.length)
+    for (let idx = 0; idx < minLength; idx += 1) {
+      const existing = currentNodeAssignments[idx]
+      const targetValue = targetAssignValues[idx]
+      if (!existing || !targetValue) continue
+      const updated = await updateAssignment({
+        id: existing.id,
+        type: targetAssignType,
+        value: targetValue,
+        priority: existing.priority ?? 0,
+        strategy: existing.strategy || 'sequential'
+      })
+      assignments.value = assignments.value.map(item => item.id === updated.id ? updated : item)
+    }
+
+    if (targetAssignValues.length > currentNodeAssignments.length) {
+      for (let idx = currentNodeAssignments.length; idx < targetAssignValues.length; idx += 1) {
+        const targetValue = targetAssignValues[idx]
+        if (!targetValue) continue
+        const created = await addAssignment({
+          process_id: id.value,
+          node_id: current.id,
+          type: targetAssignType,
+          value: targetValue,
+          priority: 0,
+          strategy: 'sequential'
+        })
+        assignments.value.push(created)
+      }
+    }
+
+    if (targetAssignValues.length < currentNodeAssignments.length) {
+      const toDelete = currentNodeAssignments.slice(targetAssignValues.length)
+      for (const item of toDelete) {
+        await deleteAssignment(item.id)
+      }
+      const deletingIds = new Set(toDelete.map(item => item.id))
+      assignments.value = assignments.value.filter(item => !deletingIds.has(item.id))
+    }
+
+    toast.add({
+      title: '保存成功',
+      description: '分派配置已保存',
+      color: 'success'
+    })
+  } catch (err: unknown) {
+    toast.add({
+      title: '保存失败',
+      description: err instanceof Error ? err.message : '保存分派配置失败',
+      color: 'error'
+    })
+  } finally {
+    savingAssignment.value = false
+  }
+}
+
 const zoomIn = () => {
   if (!canvasRef.value) return
   const rect = canvasRef.value.getBoundingClientRect()
@@ -351,30 +855,52 @@ const handleWheel = (e: WheelEvent) => {
 }
 const exportData = () => {
   const data = {
-    mode: flowMode.value,
+    processId: id.value,
     nodes: currentNodes.value,
     edges: currentEdges.value
   }
   console.log('流程配置:', data)
-  alert('配置已导出到控制台,按F12查看')
+  useToast().add({
+    title: '导出成功',
+    description: '流程配置已导出到控制台',
+    color: 'success'
+  })
+}
+
+const retryLoad = async () => {
+  await refresh()
 }
 </script>
 
 <template>
-  <UContainer>
+  <UContainer class="space-y-4 pb-6">
     <UPageHeader
-      title="流程详情"
-      :description="process?.name || '查看流程基本信息'"
+      :description="processDescription"
     >
-      <template #left>
-        <UButton
-          icon="i-lucide-arrow-left"
-          variant="ghost"
-          color="neutral"
-          to="/process"
-        >
-          返回列表
-        </UButton>
+      <template #title>
+        <div class="flex items-center gap-2">
+          <span>{{ process?.name || '流程详情' }}</span>
+          <UBadge
+            :color="processStatusColor"
+            variant="soft"
+            size="md"
+          >
+            {{ processStatusLabel }}
+          </UBadge>
+        </div>
+      </template>
+      <template #description>
+        <div class="space-y-1 text-sm">
+          <UBadge
+            color="neutral"
+            variant="soft"
+          >
+            编码: {{ processCode }}
+          </UBadge>
+          <div class="text-muted">
+            {{ processDescription }}
+          </div>
+        </div>
       </template>
     </UPageHeader>
 
@@ -383,269 +909,164 @@ const exportData = () => {
       color="error"
       variant="subtle"
       title="加载失败"
-      :description="error.message || '流程信息获取失败'"
+      :description="error.message || '流程信息或流程图数据获取失败'"
       class="mb-4"
-    />
-
-    <UCard v-else>
-      <template #header>
-        <div class="font-medium">
-          基本信息
-        </div>
+    >
+      <template #actions>
+        <UButton
+          size="xs"
+          color="error"
+          variant="soft"
+          @click="retryLoad"
+        >
+          重试
+        </UButton>
       </template>
+    </UAlert>
 
-      <div
-        v-if="loading"
-        class="text-sm text-muted"
-      >
-        正在加载...
-      </div>
-
-      <div
-        v-else-if="process"
-        class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm"
-      >
-        <div>
-          <span class="text-muted">ID：</span>{{ process.id }}
-        </div>
-        <div>
-          <span class="text-muted">编码：</span>{{ process.code }}
-        </div>
-        <div>
-          <span class="text-muted">名称：</span>{{ process.name }}
-        </div>
-        <div>
-          <span class="text-muted">状态：</span>{{ process.status === 1 ? '正常' : '禁用' }}
-        </div>
-        <div class="md:col-span-2">
-          <span class="text-muted">描述：</span>{{ process.description || '-' }}
-        </div>
-        <div>
-          <span class="text-muted">创建人：</span>{{ process.created_by_name || '-' }}
-        </div>
-        <div>
-          <span class="text-muted">更新人：</span>{{ process.updated_by_name || '-' }}
-        </div>
-        <div>
-          <span class="text-muted">创建时间：</span>{{ dayjs(process.created_at).format('YYYY-MM-DD HH:mm:ss') }}
-        </div>
-        <div>
-          <span class="text-muted">更新时间：</span>{{ dayjs(process.updated_at).format('YYYY-MM-DD HH:mm:ss') }}
-        </div>
-      </div>
-
-      <div
-        v-else
-        class="text-sm text-muted"
-      >
-        未找到流程信息
-      </div>
-    </UCard>
-    <div class="h-screen flex flex-col bg-base-200">
-      <!-- 顶部工具栏 -->
-      <div class="navbar bg-base-100 shadow-lg px-6">
-        <div class="flex-1">
-          <h1 class="text-2xl font-bold">
-            信创适配流程配置
-          </h1>
-          <p class="text-sm text-base-content/60 ml-4">
-            拖拽节点 · Shift+点击连线
-          </p>
-        </div>
-
-        <div class="flex flex-row items-center gap-2">
-          <!-- 模式切换 -->
-          <div class="join">
-            <button
-              class="join-item btn btn-sm"
-              :class="{ 'btn-primary': flowMode === 'node' }"
-              @click="switchMode('node')"
-            >
-              节点性流程
-            </button>
-          </div>
-
-          <!-- 缩放控制 -->
-          <div class="join">
-            <button
-              class="join-item btn btn-sm"
-              @click="zoomOut"
-            >
-              <svg
-                class="w-4 h-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM13 10H7"
-                />
-              </svg>
-            </button>
-            <button
-              class="join-item btn btn-sm"
-              @click="resetView"
-            >
-              <svg
-                class="w-4 h-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"
-                />
-              </svg>
-            </button>
-            <button
-              class="join-item btn btn-sm"
-              @click="zoomIn"
-            >
-              <svg
-                class="w-4 h-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"
-                />
-              </svg>
-            </button>
-          </div>
-
-          <button
-            class="btn btn-success btn-sm gap-2"
+    <div
+      v-else
+      class="space-y-4"
+    >
+      <UCard>
+        <div class="flex flex-wrap items-center justify-end gap-2">
+          <UButton
+            icon="i-lucide-minus"
+            color="neutral"
+            variant="soft"
+            @click="zoomOut"
+          />
+          <UButton
+            icon="i-lucide-scan"
+            color="neutral"
+            variant="soft"
+            @click="resetView"
+          />
+          <UButton
+            icon="i-lucide-plus"
+            color="neutral"
+            variant="soft"
+            @click="zoomIn"
+          />
+          <UButton
+            icon="i-lucide-download"
+            color="success"
+            variant="soft"
             @click="exportData"
           >
-            <svg
-              class="w-4 h-4"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"
-              />
-            </svg>
             导出
-          </button>
-
-          <button
-            class="btn btn-ghost btn-sm"
+          </UButton>
+          <UButton
+            :icon="showConfig ? 'i-lucide-panel-right-close' : 'i-lucide-panel-right-open'"
+            color="primary"
+            variant="soft"
             @click="showConfig = !showConfig"
           >
-            <svg
-              class="w-4 h-4"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
-              />
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-              />
-            </svg>
-          </button>
+            {{ showConfig ? '隐藏配置' : '显示配置' }}
+          </UButton>
         </div>
-      </div>
+      </UCard>
 
-      <!-- 主内容区 -->
-      <div class="flex-1 flex overflow-hidden">
-        <!-- 画布区 -->
+      <div class="flex h-[calc(100vh-280px)] min-h-[560px] gap-4">
         <div
           ref="canvasRef"
-          class="flex-1 relative bg-base-300 overflow-hidden"
+          class="relative flex-1 overflow-hidden rounded-xl border border-default bg-(--ui-bg-muted)"
           @mousedown="handleCanvasMouseDown"
           @mousemove="handleMouseMove"
           @mouseup="handleMouseUp"
           @wheel.prevent="handleWheel"
         >
-          <!-- 左侧工具栏 -->
-          <div class="absolute top-4 left-4 card bg-base-100 shadow-xl p-4 w-48 z-10">
-            <h3 class="font-semibold text-sm mb-3">
-              添加节点
-            </h3>
-            <div class="space-y-2">
-              <button
-                v-for="(config, type) in nodeTypeConfigs"
-                :key="type"
-                class="btn btn-sm btn-block justify-start gap-2"
-                :class="`btn-outline ${config.color}`"
-                @click="addNewNode(type as NodeType)"
-              >
-                <div
-                  class="w-2 h-2 rounded-full"
-                  :class="config.bgColor"
-                />
-                {{ config.name }}
-              </button>
+          <div class="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(59,130,246,0.08),transparent_40%),radial-gradient(circle_at_80%_0%,rgba(16,185,129,0.08),transparent_35%),linear-gradient(to_bottom,rgba(255,255,255,0.5),transparent_40%)] dark:bg-[radial-gradient(circle_at_20%_20%,rgba(56,189,248,0.12),transparent_40%),radial-gradient(circle_at_80%_0%,rgba(52,211,153,0.12),transparent_35%),linear-gradient(to_bottom,rgba(15,23,42,0.3),transparent_45%)]" />
+
+          <div
+            v-if="workflowLoading"
+            class="absolute inset-0 z-20 flex items-center justify-center bg-(--ui-bg)/80"
+          >
+            <div class="text-sm text-muted">
+              正在加载流程图...
             </div>
           </div>
 
-          <!-- 连线提示 -->
           <div
-            v-if="connectingFrom"
-            class="alert alert-warning absolute top-4 left-1/2 transform -translate-x-1/2 w-auto shadow-lg z-10"
+            v-else-if="workflowLoaded && currentNodes.length === 0"
+            class="absolute inset-0 z-20 flex items-center justify-center"
           >
-            <svg
-              class="w-6 h-6"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-              />
-            </svg>
-            <span>从 "{{ connectingFrom.name }}" 连线中,点击目标节点...</span>
+            <div class="text-sm text-muted">
+              当前流程暂无节点数据
+            </div>
           </div>
 
-          <!-- 操作提示 -->
-          <div class="absolute bottom-4 right-4 card bg-info text-info-content shadow-xl p-4 w-64 z-10">
-            <h3 class="font-semibold mb-2">
-              💡 操作提示
-            </h3>
-            <ul class="text-sm space-y-1 opacity-90">
-              <li>• 拖拽节点调整位置</li>
-              <li>• Shift + 点击开始连线</li>
-              <li>• 点击连线的 × 删除</li>
-              <li>• 拖动空白区域平移</li>
-              <li>• 点击节点查看配置</li>
-            </ul>
-          </div>
+          <UCard class="absolute left-4 top-4 z-10 w-56 border-default/80 bg-(--ui-bg)/90 shadow-lg backdrop-blur-sm">
+            <template #header>
+              <div class="space-y-1">
+                <div class="flex items-center gap-2 text-sm font-semibold">
+                  <UIcon
+                    name="i-lucide-square-plus"
+                    class="size-4 text-primary"
+                  />
+                  <span>添加节点</span>
+                </div>
+                <p class="text-xs text-muted">
+                  选择类型后在画布生成草稿节点
+                </p>
+              </div>
+            </template>
+            <div class="space-y-2">
+              <UButton
+                v-for="(config, type) in nodeTypeConfigs"
+                :key="type"
+                block
+                :icon="config.icon"
+                :color="config.uiColor"
+                variant="soft"
+                class="justify-start rounded-md transition-all duration-150"
+                :class="lastPickedNodeType === type ? 'ring-1 ring-primary/60' : ''"
+                :disabled="creatingNode"
+                :loading="creatingNode"
+                @click="addNewNode(type as NodeType)"
+              >
+                {{ config.name }}
+              </UButton>
+            </div>
+          </UCard>
 
-          <!-- 缩放比例显示 -->
-          <div class="absolute top-4 right-4 badge badge-lg badge-neutral z-10">
+          <UAlert
+            v-if="connectingFrom"
+            color="warning"
+            variant="soft"
+            class="absolute left-1/2 top-4 z-10 w-auto -translate-x-1/2"
+            :description="`从 “${connectingFrom.name}” 连线中，点击目标节点...`"
+          />
+
+          <UAlert
+            class="absolute bottom-4 right-4 z-10 w-72"
+            color="info"
+            variant="soft"
+            title="操作提示"
+            icon="i-lucide-lightbulb"
+          >
+            <template #description>
+              <ul class="list-disc space-y-1 text-xs">
+                <li>拖拽节点可调整位置</li>
+                <li>Shift + 点击开始连线</li>
+                <li>点击 × 删除连线</li>
+                <li>拖动画布可平移</li>
+                <li>点击节点可编辑配置</li>
+              </ul>
+            </template>
+          </UAlert>
+
+          <UBadge
+            class="absolute right-4 top-4 z-10"
+            color="neutral"
+            variant="soft"
+            size="lg"
+          >
             {{ Math.round(scale * 100) }}%
-          </div>
+          </UBadge>
 
-          <!-- SVG 画布 -->
           <svg
-            class="w-full h-full"
+            class="h-full w-full"
             :viewBox="viewBox"
           >
             <defs>
@@ -673,54 +1094,53 @@ const exportData = () => {
                   cy="1"
                   r="1"
                   fill="currentColor"
-                  class="text-base-content/20"
+                  class="text-info/25"
                 />
               </pattern>
             </defs>
 
-            <!-- 背景网格 -->
             <rect
-              :x="viewBox.split(' ')[0]"
-              :y="viewBox.split(' ')[1]"
-              :width="viewBox.split(' ')[2]"
-              :height="viewBox.split(' ')[3]"
+              :x="viewBounds.x"
+              :y="viewBounds.y"
+              :width="viewBounds.width"
+              :height="viewBounds.height"
               fill="url(#grid)"
             />
 
-            <!-- 连线 -->
             <g
-              v-for="edge in currentEdges"
-              :key="`${edge.from}-${edge.to}`"
+              v-for="renderEdge in renderedEdges"
+              :key="renderEdge.key"
+              class="group"
             >
               <path
-                :d="getEdgePath(edge)"
+                :d="renderEdge.path"
                 stroke="currentColor"
-                class="stroke-base-content/40"
+                class="stroke-info/55 transition-colors duration-150 group-hover:stroke-primary"
                 stroke-width="2"
                 fill="none"
                 marker-end="url(#arrowhead)"
               />
               <circle
-                :cx="getEdgeMidpoint(edge).x"
-                :cy="getEdgeMidpoint(edge).y"
+                :cx="renderEdge.midpoint.x"
+                :cy="renderEdge.midpoint.y"
                 r="8"
                 fill="currentColor"
-                class="fill-base-100 stroke-base-content/40 cursor-pointer hover:fill-error/20"
+                class="fill-(--ui-bg) stroke-info/60 cursor-pointer transition-colors duration-150 group-hover:stroke-primary hover:fill-error/15"
                 stroke-width="2"
-                @click="deleteEdge(edge.from, edge.to)"
+                @click="deleteEdge(renderEdge.edge.from_node_id!, renderEdge.edge.to_node_id!)"
               />
               <text
-                :x="getEdgeMidpoint(edge).x"
-                :y="getEdgeMidpoint(edge).y"
+                :x="renderEdge.midpoint.x"
+                :y="renderEdge.midpoint.y"
                 text-anchor="middle"
-                dominant-baseline="central"
-                class="fill-error text-xs font-bold cursor-pointer pointer-events-none"
+                dominant-baseline="middle"
+                alignment-baseline="middle"
+                class="fill-error text-xs font-bold leading-none pointer-events-none select-none"
               >
                 ×
               </text>
             </g>
 
-            <!-- 临时连线 -->
             <line
               v-if="connectingLine"
               :x1="connectingLine.x1"
@@ -733,7 +1153,6 @@ const exportData = () => {
               stroke-dasharray="5,5"
             />
 
-            <!-- 节点 -->
             <g
               v-for="node in currentNodes"
               :key="node.id"
@@ -749,14 +1168,25 @@ const exportData = () => {
                 :height="getNodeHeight(node)"
                 rx="8"
                 fill="currentColor"
-                class="fill-base-100"
+                class="fill-(--ui-bg)"
                 :stroke="selectedNode?.id === node.id ? 'currentColor' : 'currentColor'"
-                :class="selectedNode?.id === node.id ? 'stroke-primary' : 'stroke-base-content/20'"
+                :class="selectedNode?.id === node.id ? 'stroke-primary' : 'stroke-muted'"
                 :stroke-width="selectedNode?.id === node.id ? '3' : '2'"
                 style="filter: drop-shadow(0 2px 8px rgba(0,0,0,0.1))"
               />
+              <rect
+                x="-4"
+                y="-4"
+                width="168"
+                :height="getNodeHeight(node) + 8"
+                rx="10"
+                fill="none"
+                stroke="currentColor"
+                :class="getNodeRingClass(node.type)"
+                stroke-width="1.5"
+                class="pointer-events-none"
+              />
 
-              <!-- 节点头部 -->
               <rect
                 x="0"
                 y="0"
@@ -764,7 +1194,7 @@ const exportData = () => {
                 height="35"
                 rx="8"
                 fill="currentColor"
-                :class="nodeTypeConfigs[node.type].bgColor"
+                :class="getNodeHeaderClass(node.type)"
               />
               <rect
                 x="0"
@@ -772,19 +1202,18 @@ const exportData = () => {
                 width="160"
                 height="27"
                 fill="currentColor"
-                :class="nodeTypeConfigs[node.type].bgColor"
+                :class="getNodeHeaderClass(node.type)"
               />
 
               <text
                 x="80"
                 y="23"
                 text-anchor="middle"
-                class="fill-base-100 text-sm font-semibold"
+                class="fill-white text-sm font-semibold"
               >
                 {{ node.name }}
               </text>
 
-              <!-- 执行人信息 -->
               <g v-if="node.type === 'user_task' && node.assignTo && node.assignTo.length > 0">
                 <rect
                   x="8"
@@ -792,26 +1221,27 @@ const exportData = () => {
                   width="144"
                   height="32"
                   rx="4"
-                  class="fill-base-200"
+                  class="fill-info/10"
                 />
                 <text
                   x="14"
-                  y="63"
-                  class="fill-base-content text-xs"
+                  y="61"
+                  dominant-baseline="middle"
+                  alignment-baseline="middle"
+                  class="fill-info text-xs"
                 >
                   {{ node.assignTo.join(', ') }}
                 </text>
               </g>
 
-              <!-- 连接点 -->
               <circle
                 cx="80"
                 cy="0"
                 r="6"
                 fill="currentColor"
-                :class="nodeTypeConfigs[node.type].bgColor"
+                :class="getNodeHeaderClass(node.type)"
                 stroke="currentColor"
-                class="stroke-base-100"
+                class="stroke-(--ui-bg)"
                 stroke-width="2"
                 style="cursor: crosshair"
               />
@@ -820,9 +1250,9 @@ const exportData = () => {
                 :cy="getNodeHeight(node)"
                 r="6"
                 fill="currentColor"
-                :class="nodeTypeConfigs[node.type].bgColor"
+                :class="getNodeHeaderClass(node.type)"
                 stroke="currentColor"
-                class="stroke-base-100"
+                class="stroke-(--ui-bg)"
                 stroke-width="2"
                 style="cursor: crosshair"
               />
@@ -830,194 +1260,222 @@ const exportData = () => {
           </svg>
         </div>
 
-        <!-- 右侧配置面板 -->
         <div
           v-if="showConfig"
-          class="w-80 bg-base-100 shadow-xl p-6 overflow-y-auto"
+          class="w-80 overflow-y-auto"
         >
-          <h2 class="text-lg font-bold mb-4 flex items-center gap-2">
-            <svg
-              class="w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
+          <UCard>
+            <UTabs
+              v-model="configTab"
+              :items="configTabItems"
+              class="w-full"
+            />
+
+            <div
+              v-if="configTab === 'node'"
+              class="mt-4 space-y-4"
             >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
-              />
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-              />
-            </svg>
-            节点配置
-          </h2>
-
-          <div
-            v-if="!selectedNode"
-            class="text-center py-12"
-          >
-            <svg
-              class="w-12 h-12 mx-auto mb-3 text-base-content/30"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-              />
-            </svg>
-            <p class="text-base-content/60">
-              点击节点进行配置
-            </p>
-          </div>
-
-          <div
-            v-else
-            class="space-y-4"
-          >
-            <div class="alert alert-info">
-              <span class="text-xs">ID: {{ selectedNode.id }}</span>
-            </div>
-
-            <div class="form-control">
-              <label class="label">
-                <span class="label-text font-medium">节点名称</span>
-              </label>
-              <input
-                v-model="selectedNode.name"
-                type="text"
-                class="input input-bordered"
-                @input="updateNodeField('name', selectedNode.name)"
+              <div
+                v-if="!selectedNode"
+                class="py-12 text-center"
               >
-            </div>
-
-            <div class="form-control">
-              <label class="label">
-                <span class="label-text font-medium">节点类型</span>
-              </label>
-              <select
-                v-model="selectedNode.type"
-                class="select select-bordered"
-                @change="updateNodeField('type', selectedNode.type)"
-              >
-                <option
-                  v-for="(config, type) in nodeTypeConfigs"
-                  :key="type"
-                  :value="type"
+                <svg
+                  class="mx-auto mb-3 h-12 w-12 text-info/45"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
                 >
-                  {{ config.name }}
-                </option>
-              </select>
-            </div>
-
-            <template v-if="selectedNode.type === 'user_task'">
-              <div class="form-control">
-                <label class="label">
-                  <span class="label-text font-medium">分配方式</span>
-                </label>
-                <select
-                  v-model="selectedNode.assignType"
-                  class="select select-bordered"
-                  @change="updateNodeField('assignType', selectedNode.assignType)"
-                >
-                  <option value="user">
-                    指定用户
-                  </option>
-                  <option value="role">
-                    指定角色
-                  </option>
-                </select>
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                  />
+                </svg>
+                <p class="text-muted">
+                  点击节点进行配置
+                </p>
               </div>
 
-              <div class="form-control">
-                <label class="label">
-                  <span class="label-text font-medium">
-                    {{ selectedNode.assignType === 'role' ? '执行角色' : '执行用户' }}
-                  </span>
-                </label>
-                <div class="space-y-2">
-                  <div
-                    v-for="(_, idx) in selectedNode.assignTo ?? []"
-                    :key="idx"
-                    class="join w-full"
+              <div
+                v-else
+                class="space-y-4"
+              >
+                <div class="flex items-center gap-2">
+                  <UBadge
+                    :color="selectedNode._draft ? 'warning' : 'neutral'"
+                    variant="soft"
                   >
-                    <input
-                      v-model="selectedNode.assignTo[idx]"
-                      type="text"
-                      class="input input-bordered join-item flex-1"
-                      @input="updateNodeField('assignTo', selectedNode.assignTo)"
-                    >
-                    <button
-                      class="btn btn-error join-item"
-                      @click="removeAssignee(idx)"
-                    >
-                      <svg
-                        class="w-4 h-4"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          stroke-width="2"
-                          d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                        />
-                      </svg>
-                    </button>
-                  </div>
-                  <button
-                    class="btn btn-outline btn-block btn-sm"
-                    @click="addAssignee"
+                    {{ selectedNode._draft ? '草稿节点' : `ID: ${selectedNode.id}` }}
+                  </UBadge>
+                  <UBadge
+                    :icon="nodeTypeConfigs[normalizeNodeType(selectedNode.type)].icon"
+                    :color="nodeTypeConfigs[normalizeNodeType(selectedNode.type)].uiColor"
+                    variant="soft"
                   >
-                    <svg
-                      class="w-4 h-4"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M12 6v6m0 0v6m0-6h6m-6 0H6"
-                      />
-                    </svg>
-                    添加成员
-                  </button>
+                    {{ nodeTypeConfigs[normalizeNodeType(selectedNode.type)].name }}
+                  </UBadge>
                 </div>
-              </div>
-            </template>
 
-            <button
-              class="btn btn-error btn-block gap-2 mt-6"
-              @click="deleteNode"
+                <UFormField label="节点名称">
+                  <UInput
+                    v-model="selectedNode.name"
+                    class="w-full"
+                    :disabled="!selectedNode._draft"
+                    @input="updateNodeField('name', selectedNode.name)"
+                  />
+                </UFormField>
+
+                <UFormField label="节点编码">
+                  <UInput
+                    v-model="selectedNode.code"
+                    class="w-full"
+                    :disabled="!selectedNode._draft"
+                    @input="updateNodeField('code', selectedNode.code)"
+                  />
+                </UFormField>
+
+                <UFormField label="节点类型">
+                  <USelect
+                    v-model="selectedNode.type"
+                    class="w-full"
+                    :items="nodeTypeOptions"
+                    value-key="value"
+                    label-key="label"
+                    :disabled="!selectedNode._draft"
+                    @change="updateNodeField('type', selectedNode.type)"
+                  />
+                </UFormField>
+
+                <UFormField label="节点标签">
+                  <UInput
+                    v-model="selectedNode.tag"
+                    class="w-full"
+                    @input="updateNodeField('tag', selectedNode.tag)"
+                  />
+                </UFormField>
+
+                <UFormField label="节点描述">
+                  <UTextarea
+                    v-model="selectedNode.description"
+                    class="w-full"
+                    :rows="3"
+                    @input="updateNodeField('description', selectedNode.description)"
+                  />
+                </UFormField>
+
+                <UButton
+                  icon="i-lucide-save"
+                  color="primary"
+                  variant="solid"
+                  block
+                  :loading="savingNode"
+                  :disabled="savingNode || savingAssignment || deletingNode"
+                  @click="saveNodeConfig"
+                >
+                  {{ selectedNode._draft ? '创建节点' : '保存节点配置' }}
+                </UButton>
+
+                <UButton
+                  icon="i-lucide-trash-2"
+                  color="error"
+                  variant="soft"
+                  block
+                  class="mt-2"
+                  :loading="deletingNode"
+                  :disabled="savingNode || savingAssignment || deletingNode"
+                  @click="deleteNode"
+                >
+                  删除节点
+                </UButton>
+              </div>
+            </div>
+
+            <div
+              v-else
+              class="mt-4 space-y-4"
             >
-              <svg
-                class="w-4 h-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
+              <div
+                v-if="!selectedNode"
+                class="py-8 text-sm text-muted"
               >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                />
-              </svg>
-              删除节点
-            </button>
-          </div>
+                请选择节点后配置分派
+              </div>
+
+              <div
+                v-else-if="selectedNode._draft"
+                class="py-8 text-sm text-muted"
+              >
+                请先在“节点配置”中创建节点，再保存分派
+              </div>
+
+              <div
+                v-else-if="selectedNode.type !== 'user_task'"
+                class="py-8 text-sm text-muted"
+              >
+                当前节点类型无需分派配置
+              </div>
+
+              <div
+                v-else
+                class="space-y-4"
+              >
+                <UFormField label="分配方式">
+                  <USelect
+                    v-model="selectedNode.assignType"
+                    class="w-full"
+                    :items="assignTypeOptions"
+                    value-key="value"
+                    label-key="label"
+                    @change="updateNodeField('assignType', selectedNode.assignType)"
+                  />
+                </UFormField>
+
+                <UFormField :label="selectedNode.assignType === 'role' ? '执行角色' : '执行用户'">
+                  <div class="space-y-2">
+                    <div
+                      v-for="(_, idx) in selectedNode.assignTo ?? []"
+                      :key="idx"
+                      class="flex items-center gap-2"
+                    >
+                      <UInput
+                        v-model="selectedNode.assignTo[idx]"
+                        class="flex-1"
+                        @input="updateNodeField('assignTo', selectedNode.assignTo)"
+                      />
+                      <UButton
+                        icon="i-lucide-trash-2"
+                        color="error"
+                        variant="soft"
+                        @click="removeAssignee(idx)"
+                      />
+                    </div>
+                    <UButton
+                      icon="i-lucide-plus"
+                      block
+                      color="neutral"
+                      variant="soft"
+                      @click="addAssignee"
+                    >
+                      添加成员
+                    </UButton>
+                  </div>
+                </UFormField>
+
+                <UButton
+                  icon="i-lucide-users"
+                  color="primary"
+                  variant="soft"
+                  block
+                  :loading="savingAssignment"
+                  :disabled="selectedNode._draft || savingAssignment || savingNode || deletingNode"
+                  @click="saveAssignmentConfig"
+                >
+                  保存分派配置
+                </UButton>
+              </div>
+            </div>
+          </UCard>
         </div>
       </div>
     </div>

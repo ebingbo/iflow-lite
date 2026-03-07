@@ -32,6 +32,15 @@ func (*NodeDao) NodeGet(ctx context.Context, id uint64) (*model.Node, error) {
 	return m, nil
 }
 
+func (*NodeDao) NodeDelete(ctx context.Context, id uint64) error {
+	m := &model.Node{ID: id}
+	if err := client.MysqlDB.WithContext(ctx).Delete(m).Error; err != nil {
+		logger.ServiceLogger.WithContext(ctx).Errorf("node delete error: %+v", err)
+		return err
+	}
+	return nil
+}
+
 func (*NodeDao) NodeGetWithTransaction(ctx context.Context, tx *gorm.DB, id uint64) (*model.Node, error) {
 	m := &model.Node{ID: id}
 	if err := tx.WithContext(ctx).First(m).Error; err != nil {
@@ -65,6 +74,14 @@ func (*NodeDao) NodeAdd(ctx context.Context, m *model.Node) (*model.Node, error)
 		return nil, err
 	}
 	return m, nil
+}
+
+func (*NodeDao) NodeUpdate(ctx context.Context, m *model.Node) error {
+	if err := client.MysqlDB.WithContext(ctx).Save(m).Error; err != nil {
+		logger.ServiceLogger.WithContext(ctx).Errorf("node update error: %+v", err)
+		return err
+	}
+	return nil
 }
 
 func (*NodeDao) NodeList(ctx context.Context, cond map[string]interface{}) ([]*model.Node, error) {

@@ -30,6 +30,16 @@ func (*AssignmentDao) AssignmentGet(ctx context.Context, id uint64) (*model.Assi
 	}
 	return m, nil
 }
+
+func (*AssignmentDao) AssignmentDelete(ctx context.Context, id uint64) error {
+	m := &model.Assignment{ID: id}
+	if err := client.MysqlDB.WithContext(ctx).Delete(m).Error; err != nil {
+		logger.ServiceLogger.WithContext(ctx).Errorf("assignment delete error: %+v", err)
+		return err
+	}
+	return nil
+}
+
 func (*AssignmentDao) AssignmentAdd(ctx context.Context, m *model.Assignment) (*model.Assignment, error) {
 	if err := client.MysqlDB.WithContext(ctx).Create(m).Error; err != nil {
 		logger.ServiceLogger.WithContext(ctx).Errorf("assignment add error: %+v", err)
@@ -38,6 +48,13 @@ func (*AssignmentDao) AssignmentAdd(ctx context.Context, m *model.Assignment) (*
 	return m, nil
 }
 
+func (*AssignmentDao) AssignmentUpdate(ctx context.Context, m *model.Assignment) error {
+	if err := client.MysqlDB.WithContext(ctx).Save(m).Error; err != nil {
+		logger.ServiceLogger.WithContext(ctx).Errorf("assignment update error: %+v", err)
+		return err
+	}
+	return nil
+}
 func (*AssignmentDao) AssignmentList(ctx context.Context, cond map[string]interface{}) ([]*model.Assignment, error) {
 	var items []*model.Assignment
 	if err := client.MysqlDB.WithContext(ctx).Where(cond).Find(&items).Error; err != nil {

@@ -29,12 +29,29 @@ func (*TransitionDao) TransitionGet(ctx context.Context, id uint64) (*model.Tran
 	}
 	return m, nil
 }
+
+func (*TransitionDao) TransitionDelete(ctx context.Context, id uint64) error {
+	m := &model.Transition{ID: id}
+	if err := client.MysqlDB.WithContext(ctx).Delete(m).Error; err != nil {
+		logger.ServiceLogger.WithContext(ctx).Errorf("transition delete error: %+v", err)
+		return err
+	}
+	return nil
+}
 func (*TransitionDao) TransitionAdd(ctx context.Context, m *model.Transition) (*model.Transition, error) {
 	if err := client.MysqlDB.WithContext(ctx).Create(m).Error; err != nil {
 		logger.ServiceLogger.WithContext(ctx).Errorf("transition add error: %+v", err)
 		return nil, err
 	}
 	return m, nil
+}
+
+func (*TransitionDao) TransitionUpdate(ctx context.Context, m *model.Transition) error {
+	if err := client.MysqlDB.WithContext(ctx).Save(m).Error; err != nil {
+		logger.ServiceLogger.WithContext(ctx).Errorf("transition update error: %+v", err)
+		return err
+	}
+	return nil
 }
 
 func (*TransitionDao) TransitionList(ctx context.Context, cond map[string]interface{}) ([]*model.Transition, error) {

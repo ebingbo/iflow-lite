@@ -1,5 +1,5 @@
 import type { ApiResponse } from '~/types/api'
-import type { Transition, TransitionAddBody, TransitionListBody } from '~/types/transition'
+import type { Transition, TransitionAddBody, TransitionListBody, TransitionUpdateBody } from '~/types/transition'
 
 function ensureResponseSuccess<T>(response: ApiResponse<T>, fallbackMessage: string): T {
   if (response.code !== 0) {
@@ -28,8 +28,27 @@ export function useTransitionApi() {
     return ensureResponseSuccess(response, '获取连线列表失败')
   }
 
+  async function updateTransition(body: TransitionUpdateBody) {
+    const response = await $fetch<ApiResponse<Transition>>('/api/transition/update', {
+      method: 'POST',
+      body
+    })
+
+    return ensureResponseSuccess(response, '更新连线失败')
+  }
+
+  async function deleteTransition(id: number) {
+    const response = await $fetch<ApiResponse<null>>(`/api/transition/delete/${id}`, {
+      method: 'POST'
+    })
+
+    return ensureResponseSuccess(response, '删除连线失败')
+  }
+
   return {
     addTransition,
-    listTransition
+    listTransition,
+    updateTransition,
+    deleteTransition
   }
 }

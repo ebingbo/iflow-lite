@@ -13,3 +13,25 @@ export interface Assignment {
   created_at: string
   updated_at: string
 }
+
+export interface AssignmentAddBody {
+  process_id: number
+  node_id: number
+  type: string
+  value: string
+  priority: number
+  strategy: string
+}
+
+export interface AssignmentUpdateBody {
+  id: number
+  type: string
+  value: string
+  priority: number
+  strategy: string
+}
+
+export interface AssignmentListBody {
+  process_id?: number
+  node_id?: number
+}

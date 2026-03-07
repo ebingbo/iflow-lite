@@ -20,7 +20,25 @@ func NewTransitionService() *TransitionService {
 func (this *TransitionService) TransitionGet(ctx context.Context, in *input.TransitionGetInput) (interface{}, error) {
 	return dao.DefaultTransitionDao.TransitionGet(ctx, in.ID)
 }
+func (this *TransitionService) TransitionDelete(ctx context.Context, in *input.TransitionDeleteInput) (interface{}, error) {
+	if err := dao.DefaultTransitionDao.TransitionDelete(ctx, in.ID); err != nil {
+		return nil, err
+	}
+	return nil, nil
+}
 
+func (this *TransitionService) TransitionUpdate(ctx context.Context, in *input.TransitionUpdateInput) (interface{}, error) {
+	item, err := dao.DefaultTransitionDao.TransitionGet(ctx, in.ID)
+	if err != nil {
+		return nil, err
+	}
+	item.FromNodeID = in.FromNodeID
+	item.ToNodeID = in.ToNodeID
+	if err := dao.DefaultTransitionDao.TransitionUpdate(ctx, item); err != nil {
+		return nil, err
+	}
+	return nil, nil
+}
 func (this *TransitionService) TransitionAdd(ctx context.Context, in *input.TransitionAddInput) (interface{}, error) {
 	m := model.NewTransitionBuilder().
 		ProcessID(in.ProcessID).

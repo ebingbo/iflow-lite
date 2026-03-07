@@ -24,6 +24,84 @@ func (this *ProcessService) ProcessGet(ctx context.Context, in *input.ProcessGet
 	return dao.DefaultProcessDao.ProcessGet(ctx, in.ID)
 }
 
+func (this *ProcessService) ProcessGetByID(ctx context.Context, in *input.ProcessGetByIDInput) (interface{}, error) {
+	result := &output.ProcessGetOutput{
+		Nodes:       make([]*dto.Node, 0),
+		Transitions: make([]*model.Transition, 0),
+		Assignments: make([]*model.Assignment, 0),
+	}
+
+	process, err := dao.DefaultProcessDao.ProcessGet(ctx, in.ID)
+	if err != nil {
+		return nil, err
+	}
+	if process == nil {
+		return result, nil
+	}
+
+	processDTO := &dto.Process{Process: process}
+	processUsers, err := dao.DefaultUserDao.UserListByIDs(ctx, []uint64{process.CreatedBy, process.UpdatedBy})
+	if err != nil {
+		return nil, err
+	}
+	for _, user := range processUsers {
+		if user.ID == process.CreatedBy {
+			processDTO.CreatedByName = user.Name
+		}
+		if user.ID == process.UpdatedBy {
+			processDTO.UpdatedByName = user.Name
+		}
+	}
+	result.Process = processDTO
+
+	nodes, err := dao.DefaultNodeDao.NodeList(ctx, map[string]interface{}{"process_id": in.ID})
+	if err != nil {
+		return nil, err
+	}
+	if len(nodes) > 0 {
+		uidMap := make(map[uint64]struct{})
+		for _, item := range nodes {
+			uidMap[item.CreatedBy] = struct{}{}
+			uidMap[item.UpdatedBy] = struct{}{}
+		}
+		uidList := make([]uint64, 0, len(uidMap))
+		for uid := range uidMap {
+			uidList = append(uidList, uid)
+		}
+		users, err := dao.DefaultUserDao.UserListByIDs(ctx, uidList)
+		if err != nil {
+			return nil, err
+		}
+		userMap := make(map[uint64]*model.User)
+		for _, user := range users {
+			userMap[user.ID] = user
+		}
+		for _, item := range nodes {
+			node := &dto.Node{Node: item}
+			if user, ok := userMap[item.CreatedBy]; ok {
+				node.CreatedByName = user.Name
+			}
+			if user, ok := userMap[item.UpdatedBy]; ok {
+				node.UpdatedByName = user.Name
+			}
+			result.Nodes = append(result.Nodes, node)
+		}
+	}
+
+	transitions, err := dao.DefaultTransitionDao.TransitionList(ctx, map[string]interface{}{"process_id": in.ID})
+	if err != nil {
+		return nil, err
+	}
+	result.Transitions = transitions
+
+	assignments, err := dao.DefaultAssignmentDao.AssignmentList(ctx, map[string]interface{}{"process_id": in.ID})
+	if err != nil {
+		return nil, err
+	}
+	result.Assignments = assignments
+	return result, nil
+}
+
 func (this *ProcessService) ProcessDelete(ctx context.Context, in *input.ProcessDeleteInput) (interface{}, error) {
 	if err := dao.DefaultProcessDao.ProcessDelete(ctx, in.ID); err != nil {
 		return nil, err

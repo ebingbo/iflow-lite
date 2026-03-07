@@ -12,4 +12,6 @@ func NodeRouterInit(e *gin.Engine) {
 	group.POST("/add", controller.NodeAdd)
 	group.POST("/query", controller.NodeQuery)
 	group.POST("/list", controller.NodeList)
+	group.POST("/delete/:id", controller.NodeDelete)
+	group.POST("/update", controller.NodeUpdate)
 }

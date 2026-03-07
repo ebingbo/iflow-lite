@@ -24,7 +24,24 @@ func NewNodeService() *NodeService {
 func (this *NodeService) NodeGet(ctx context.Context, in *input.NodeGetInput) (interface{}, error) {
 	return dao.DefaultNodeDao.NodeGet(ctx, in.ID)
 }
-
+func (this *NodeService) NodeDelete(ctx context.Context, in *input.NodeDeleteInput) (interface{}, error) {
+	if err := dao.DefaultNodeDao.NodeDelete(ctx, in.ID); err != nil {
+		return nil, err
+	}
+	return nil, nil
+}
+func (this *NodeService) NodeUpdate(ctx context.Context, in *input.NodeUpdateInput) (interface{}, error) {
+	node, err := dao.DefaultNodeDao.NodeGet(ctx, in.ID)
+	if err != nil {
+		return nil, err
+	}
+	node.Tag = in.Tag
+	node.Description = in.Description
+	if err := dao.DefaultNodeDao.NodeUpdate(ctx, node); err != nil {
+		return nil, err
+	}
+	return node, nil
+}
 func (this *NodeService) NodeAdd(ctx context.Context, in *input.NodeAddInput) (interface{}, error) {
 	process, err := dao.DefaultProcessDao.ProcessGet(ctx, in.ProcessID)
 	if err != nil {

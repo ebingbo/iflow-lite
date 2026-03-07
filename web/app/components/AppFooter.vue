@@ -28,7 +28,7 @@ const columns = [{
 }, {
   label: '项目',
   children: [{
-    label: 'GitHub 仓库',
+    label: '代码仓库',
     to: 'https://github.com/ebingbo/iflow-lite',
     target: '_blank'
   }, {

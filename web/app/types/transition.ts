@@ -16,3 +16,9 @@ export interface TransitionAddBody {
   from_node_id: number
   to_node_id: number
 }
+
+export interface TransitionUpdateBody {
+  id: number
+  from_node_id: number
+  to_node_id: number
+}

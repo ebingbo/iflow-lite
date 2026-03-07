@@ -17,9 +17,9 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 )
 
-// @title           Gin App API
+// @title           iFlow Lite App API
 // @version         1.0
-// @description     这是gin-app服务的接口文档.
+// @description     这是iFlow Lite服务的接口文档.
 // @host            localhost:8080
 // @BasePath        /api
 func main() {

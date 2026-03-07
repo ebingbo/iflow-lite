@@ -13,6 +13,11 @@ type (
 		Type        string `json:"type"`
 		Description string `json:"description"`
 	}
+	NodeUpdateInput struct {
+		ID          uint64 `json:"id"`
+		Tag         string `json:"tag"`
+		Description string `json:"description"`
+	}
 	NodeListInput struct {
 		ProcessID   uint64 `json:"process_id"`
 		ProcessCode string `json:"process_code"`
@@ -26,5 +31,8 @@ type (
 		ProcessCode string `json:"process_code"`
 		Code        string `json:"code"`
 		Type        string `json:"type"`
+	}
+	NodeDeleteInput struct {
+		ID uint64 `uri:"id"`
 	}
 )

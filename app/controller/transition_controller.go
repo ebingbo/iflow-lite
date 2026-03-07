@@ -49,3 +49,30 @@ func TransitionList(ctx *gin.Context) {
 	}
 	http.JsonResponse(ctx, result)
 }
+func TransitionDelete(ctx *gin.Context) {
+	var in input.TransitionDeleteInput
+	if err := ctx.ShouldBindUri(&in); err != nil {
+		http.JsonResponse(ctx, err)
+		return
+	}
+	result, err := service.DefaultTransitionService.TransitionDelete(ctx.Request.Context(), &in)
+	if err != nil {
+		http.JsonResponse(ctx, err)
+		return
+	}
+	http.JsonResponse(ctx, result)
+}
+
+func TransitionUpdate(ctx *gin.Context) {
+	var in input.TransitionUpdateInput
+	if err := ctx.ShouldBindJSON(&in); err != nil {
+		http.JsonResponse(ctx, err)
+		return
+	}
+	result, err := service.DefaultTransitionService.TransitionUpdate(ctx.Request.Context(), &in)
+	if err != nil {
+		http.JsonResponse(ctx, err)
+		return
+	}
+	http.JsonResponse(ctx, result)
+}

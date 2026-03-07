@@ -4,6 +4,9 @@ type (
 	ProcessGetInput struct {
 		ID uint64 `form:"id"`
 	}
+	ProcessGetByIDInput struct {
+		ID uint64 `uri:"id"`
+	}
 	ProcessDeleteInput struct {
 		ID uint64 `uri:"id"`
 	}

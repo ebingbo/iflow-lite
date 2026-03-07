@@ -1,5 +1,5 @@
 import type { ApiResponse } from '~/types/api'
-import type { Process, ProcessAddBody, ProcessQueryBody, ProcessQueryData, ProcessUpdateBody } from '~/types/process'
+import type { Process, ProcessAddBody, ProcessGetData, ProcessQueryBody, ProcessQueryData, ProcessUpdateBody } from '~/types/process'
 
 function ensureResponseSuccess<T>(response: ApiResponse<T>, fallbackMessage: string): T {
   if (response.code !== 0) {
@@ -11,7 +11,7 @@ function ensureResponseSuccess<T>(response: ApiResponse<T>, fallbackMessage: str
 
 export function useProcessApi() {
   async function getProcess(id: number) {
-    const response = await $fetch<ApiResponse<Process>>(`/api/process/get/${id}`, {
+    const response = await $fetch<ApiResponse<ProcessGetData>>(`/api/process/get/${id}`, {
       method: 'GET'
     })
 
