@@ -283,8 +283,9 @@ const normalizeNodes = (rawNodes: WorkflowNode[], rawEdges: WorkflowEdge[], rawA
     const x = typeof item.x === 'number' ? item.x : (autoPosition?.x ?? 80 + (index % 4) * NODE_SPACING_X)
     const y = typeof item.y === 'number' ? item.y : (autoPosition?.y ?? 80 + Math.floor(index / 4) * NODE_SPACING_Y)
     const nodeAssignments = item.id ? (assignmentMap.get(item.id) ?? []) : []
-    const assignType = nodeAssignments[0]?.type as Node['assignType'] | undefined
-    const assignTo = nodeAssignments.map(assignment => assignment.value).filter(Boolean)
+    const primaryAssignment = nodeAssignments[0]
+    const assignType = primaryAssignment?.type as Node['assignType'] | undefined
+    const assignTo = primaryAssignment?.value ? [primaryAssignment.value] : []
 
     return {
       ...item,
@@ -559,16 +560,6 @@ const updateNodeField = <K extends keyof WorkflowNode>(field: K, value: Workflow
     }
   }
 }
-const addAssignee = () => {
-  if (!selectedNode.value || !selectedNode.value.assignTo) return
-  selectedNode.value.assignTo.push('新成员')
-  updateNodeField('assignTo', selectedNode.value.assignTo)
-}
-const removeAssignee = (index: number) => {
-  if (!selectedNode.value || !selectedNode.value.assignTo) return
-  selectedNode.value.assignTo.splice(index, 1)
-  updateNodeField('assignTo', selectedNode.value.assignTo)
-}
 
 const saveNodeConfig = async () => {
   if (!selectedNode.value) return
@@ -692,33 +683,27 @@ const saveAssignmentConfig = async () => {
 
   try {
     const currentNodeAssignments = assignments.value.filter(item => item.node_id === current.id)
-    const targetAssignValues = (current.assignTo ?? []).map(item => item.trim()).filter(Boolean)
+    const targetAssignValue = (current.assignTo?.[0] ?? '').trim()
     const targetAssignType = current.assignType || 'user'
+    const sortedExisting = [...currentNodeAssignments].sort((a, b) => a.id - b.id)
+    const primaryExisting = sortedExisting[0]
 
-    const minLength = Math.min(currentNodeAssignments.length, targetAssignValues.length)
-    for (let idx = 0; idx < minLength; idx += 1) {
-      const existing = currentNodeAssignments[idx]
-      const targetValue = targetAssignValues[idx]
-      if (!existing || !targetValue) continue
-      const updated = await updateAssignment({
-        id: existing.id,
-        type: targetAssignType,
-        value: targetValue,
-        priority: existing.priority ?? 0,
-        strategy: existing.strategy || 'sequential'
-      })
-      assignments.value = assignments.value.map(item => item.id === updated.id ? updated : item)
-    }
-
-    if (targetAssignValues.length > currentNodeAssignments.length) {
-      for (let idx = currentNodeAssignments.length; idx < targetAssignValues.length; idx += 1) {
-        const targetValue = targetAssignValues[idx]
-        if (!targetValue) continue
+    if (targetAssignValue) {
+      if (primaryExisting) {
+        const updated = await updateAssignment({
+          id: primaryExisting.id,
+          type: targetAssignType,
+          value: targetAssignValue,
+          priority: primaryExisting.priority ?? 0,
+          strategy: primaryExisting.strategy || 'sequential'
+        })
+        assignments.value = assignments.value.map(item => item.id === updated.id ? updated : item)
+      } else {
         const created = await addAssignment({
           process_id: id.value,
           node_id: current.id,
           type: targetAssignType,
-          value: targetValue,
+          value: targetAssignValue,
           priority: 0,
           strategy: 'sequential'
         })
@@ -726,12 +711,14 @@ const saveAssignmentConfig = async () => {
       }
     }
 
-    if (targetAssignValues.length < currentNodeAssignments.length) {
-      const toDelete = currentNodeAssignments.slice(targetAssignValues.length)
-      for (const item of toDelete) {
-        await deleteAssignment(item.id)
-      }
-      const deletingIds = new Set(toDelete.map(item => item.id))
+    const redundant = targetAssignValue
+      ? sortedExisting.slice(1)
+      : sortedExisting
+    for (const item of redundant) {
+      await deleteAssignment(item.id)
+    }
+    if (redundant.length > 0) {
+      const deletingIds = new Set(redundant.map(item => item.id))
       assignments.value = assignments.value.filter(item => !deletingIds.has(item.id))
     }
 
@@ -999,7 +986,7 @@ const retryLoad = async () => {
           <UCard class="absolute left-4 top-4 z-10 w-56 border-default/80 bg-(--ui-bg)/90 shadow-lg backdrop-blur-sm">
             <template #header>
               <div class="space-y-1">
-                <div class="flex items-center gap-2 text-sm font-semibold">
+                <div class="flex items-center gap-2 font-semibold">
                   <UIcon
                     name="i-lucide-square-plus"
                     class="size-4 text-primary"
@@ -1019,7 +1006,7 @@ const retryLoad = async () => {
                 :icon="config.icon"
                 :color="config.uiColor"
                 variant="soft"
-                class="justify-start rounded-md transition-all duration-150"
+                class="justify-start transition-all duration-150"
                 :class="lastPickedNodeType === type ? 'ring-1 ring-primary/60' : ''"
                 :disabled="creatingNode"
                 :loading="creatingNode"
@@ -1432,34 +1419,12 @@ const retryLoad = async () => {
                 </UFormField>
 
                 <UFormField :label="selectedNode.assignType === 'role' ? '执行角色' : '执行用户'">
-                  <div class="space-y-2">
-                    <div
-                      v-for="(_, idx) in selectedNode.assignTo ?? []"
-                      :key="idx"
-                      class="flex items-center gap-2"
-                    >
-                      <UInput
-                        v-model="selectedNode.assignTo[idx]"
-                        class="flex-1"
-                        @input="updateNodeField('assignTo', selectedNode.assignTo)"
-                      />
-                      <UButton
-                        icon="i-lucide-trash-2"
-                        color="error"
-                        variant="soft"
-                        @click="removeAssignee(idx)"
-                      />
-                    </div>
-                    <UButton
-                      icon="i-lucide-plus"
-                      block
-                      color="neutral"
-                      variant="soft"
-                      @click="addAssignee"
-                    >
-                      添加成员
-                    </UButton>
-                  </div>
+                  <UInput
+                    :model-value="selectedNode.assignTo?.[0] || ''"
+                    class="w-full"
+                    :placeholder="selectedNode.assignType === 'role' ? '请输入角色编码或名称' : '请输入用户ID或账号'"
+                    @update:model-value="(val: string) => updateNodeField('assignTo', [val])"
+                  />
                 </UFormField>
 
                 <UButton
