@@ -11,9 +11,10 @@ type Task struct {
 	NodeID      uint64     `gorm:"column:node_id;default:0" json:"node_id" example:"1"`
 	NodeCode    string     `gorm:"column:node_code;default:''" json:"node_code" example:"1"`
 	NodeName    string     `gorm:"column:node_name;default:''" json:"node_name" example:"1"`
-	AssigneeID  string     `gorm:"column:assignee_id;default:''" json:"assignee_id" example:"1"`
+	AssigneeID  uint64     `gorm:"column:assignee_id;default:0" json:"assignee_id" example:"1"`
 	Status      string     `gorm:"column:status;default:'running'" json:"status" example:"running"`
 	StartedAt   *time.Time `gorm:"column:started_at" json:"started_at"`
+	ClaimedAt   *time.Time `gorm:"column:claimed_at" json:"claimed_at"`
 	EndedAt     *time.Time `gorm:"column:ended_at" json:"ended_at"`
 	Remark      string     `gorm:"column:remark;default:''" json:"remark" example:"1"`
 	CreatedAt   time.Time  `gorm:"column:created_at;autoCreateTime;" json:"created_at" example:"2020-10-11T10:10:10"` // 创建时间

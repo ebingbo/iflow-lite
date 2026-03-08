@@ -38,6 +38,14 @@ func (*UserDao) UserAdd(ctx context.Context, m *model.User) error {
 	return nil
 }
 
+func (*UserDao) UserUpdate(ctx context.Context, m *model.User) error {
+	if err := client.MysqlDB.WithContext(ctx).Save(m).Error; err != nil {
+		logger.ServiceLogger.WithContext(ctx).Errorf("user update error: %+v", err)
+		return err
+	}
+	return nil
+}
+
 func (*UserDao) UserList(ctx context.Context) ([]*model.User, error) {
 	var items []*model.User
 	if err := client.MysqlDB.WithContext(ctx).Find(&items).Error; err != nil {
@@ -92,4 +100,38 @@ func (*UserDao) UserTake(ctx context.Context, email string) (*model.User, error)
 		return nil, err
 	}
 	return &item, nil
+}
+
+func (*UserDao) UserListForAssignment(ctx context.Context, keyword string, size int) ([]*model.User, error) {
+	if size <= 0 {
+		size = 50
+	}
+	if size > 200 {
+		size = 200
+	}
+
+	db := client.MysqlDB.WithContext(ctx).Model(&model.User{}).Where("status = 1")
+	if keyword != "" {
+		db = db.Where("name LIKE ? OR email LIKE ?", "%"+keyword+"%", "%"+keyword+"%")
+	}
+
+	var items []*model.User
+	if err := db.Order("id DESC").Limit(size).Find(&items).Error; err != nil {
+		logger.ServiceLogger.WithContext(ctx).Errorf("user list for assignment error: %+v", err)
+		return nil, err
+	}
+	return items, nil
+}
+
+func (*UserDao) UserIDListByRoleIDWithTransaction(ctx context.Context, tx *gorm.DB, roleID uint64) ([]uint64, error) {
+	var userIDs []uint64
+	if err := tx.WithContext(ctx).
+		Table("user_role").
+		Select("DISTINCT user_id").
+		Where("role_id = ?", roleID).
+		Pluck("user_id", &userIDs).Error; err != nil {
+		logger.ServiceLogger.WithContext(ctx).Errorf("user id list by role id with transaction error: %+v", err)
+		return nil, err
+	}
+	return userIDs, nil
 }

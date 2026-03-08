@@ -6,8 +6,8 @@ export interface Assignment {
   process_code: string
   node_id: number
   node_code: string
-  type: string
-  value: string
+  principal_type: string
+  principal_id: number
   priority: number
   strategy: string
   created_at: string
@@ -17,16 +17,16 @@ export interface Assignment {
 export interface AssignmentAddBody {
   process_id: number
   node_id: number
-  type: string
-  value: string
+  principal_type: string
+  principal_id: number
   priority: number
   strategy: string
 }
 
 export interface AssignmentUpdateBody {
   id: number
-  type: string
-  value: string
+  principal_type: string
+  principal_id: number
   priority: number
   strategy: string
 }

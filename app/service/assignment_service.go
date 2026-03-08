@@ -33,8 +33,8 @@ func (this *AssignmentService) AssignmentUpdate(ctx context.Context, in *input.A
 	if err != nil {
 		return nil, err
 	}
-	m.Type = in.Type
-	m.Value = in.Value
+	m.PrincipalType = in.PrincipalType
+	m.PrincipalID = in.PrincipalID
 	m.Priority = in.Priority
 	m.Strategy = in.Strategy
 	if err := dao.DefaultAssignmentDao.AssignmentUpdate(ctx, m); err != nil {
@@ -62,8 +62,8 @@ func (this *AssignmentService) AssignmentAdd(ctx context.Context, in *input.Assi
 		ProcessCode(process.Code).
 		NodeID(in.NodeID).
 		NodeCode(node.Code).
-		Type(in.Type).
-		Value(in.Value).
+		PrincipalType(in.PrincipalType).
+		PrincipalID(in.PrincipalID).
 		Priority(in.Priority).
 		Strategy(in.Strategy).
 		Build()
@@ -88,8 +88,8 @@ func (this *AssignmentService) AssignmentQuery(ctx context.Context, in *input.As
 	if in.NodeCode != "" {
 		cond["node_code"] = in.NodeCode
 	}
-	if in.Type != "" {
-		cond["type"] = in.Type
+	if in.PrincipalType != "" {
+		cond["principal_type"] = in.PrincipalType
 	}
 	if in.Page <= 0 {
 		in.Page = 1

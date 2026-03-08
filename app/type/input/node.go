@@ -11,11 +11,17 @@ type (
 		Code        string `json:"code"`
 		Name        string `json:"name"`
 		Type        string `json:"type"`
+		AssignMode  string `json:"assign_mode"`
+		X           int    `json:"x"`
+		Y           int    `json:"y"`
 		Description string `json:"description"`
 	}
 	NodeUpdateInput struct {
 		ID          uint64 `json:"id"`
 		Tag         string `json:"tag"`
+		AssignMode  string `json:"assign_mode"`
+		X           int    `json:"x"`
+		Y           int    `json:"y"`
 		Description string `json:"description"`
 	}
 	NodeListInput struct {

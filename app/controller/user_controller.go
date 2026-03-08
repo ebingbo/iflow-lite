@@ -58,3 +58,59 @@ func UserLogin(ctx *gin.Context) {
 	}
 	http.JsonResponse(ctx, result)
 }
+
+func UserList(ctx *gin.Context) {
+	var in input.UserListInput
+	if err := ctx.ShouldBindJSON(&in); err != nil {
+		http.JsonResponse(ctx, err)
+		return
+	}
+	result, err := service.DefaultUserService.UserList(ctx.Request.Context(), &in)
+	if err != nil {
+		http.JsonResponse(ctx, err)
+		return
+	}
+	http.JsonResponse(ctx, result)
+}
+
+func UserProfileUpdate(ctx *gin.Context) {
+	var in input.UserProfileUpdateInput
+	if err := ctx.ShouldBindJSON(&in); err != nil {
+		http.JsonResponse(ctx, err)
+		return
+	}
+	result, err := service.DefaultUserService.UserProfileUpdate(ctx.Request.Context(), &in)
+	if err != nil {
+		http.JsonResponse(ctx, err)
+		return
+	}
+	http.JsonResponse(ctx, result)
+}
+
+func UserPasswordUpdate(ctx *gin.Context) {
+	var in input.UserPasswordUpdateInput
+	if err := ctx.ShouldBindJSON(&in); err != nil {
+		http.JsonResponse(ctx, err)
+		return
+	}
+	result, err := service.DefaultUserService.UserPasswordUpdate(ctx.Request.Context(), &in)
+	if err != nil {
+		http.JsonResponse(ctx, err)
+		return
+	}
+	http.JsonResponse(ctx, result)
+}
+
+func UserPasswordForgot(ctx *gin.Context) {
+	var in input.UserPasswordForgotInput
+	if err := ctx.ShouldBindJSON(&in); err != nil {
+		http.JsonResponse(ctx, err)
+		return
+	}
+	result, err := service.DefaultUserService.UserPasswordForgot(ctx.Request.Context(), &in)
+	if err != nil {
+		http.JsonResponse(ctx, err)
+		return
+	}
+	http.JsonResponse(ctx, result)
+}

@@ -10,6 +10,7 @@ truncate table transition;
 truncate table assignment;
 truncate table execution;
 truncate table task;
+truncate table task_candidate;
 truncate table log;
 
 -- 角色表
@@ -80,6 +81,9 @@ create table if not exists node
     name         varchar(100) not null default '' comment '节点名称',
     code         varchar(100) not null default '' comment '节点编码',
     type         varchar(50)  not null default 'start' comment '节点类型: start, end, join, user_task, service_task, exclusive_gateway, parallel_gateway',
+    assign_mode  varchar(20)  not null default 'single' comment '分派模式: single, candidate, multi_instance(预留)',
+    x            int          not null default 0 comment '画布X坐标',
+    y            int          not null default 0 comment '画布Y坐标',
     description  text comment '描述',
     created_by   bigint       not null default 0 comment '创建人',
     updated_by   bigint       not null default 0 comment '更新人',
@@ -136,9 +140,10 @@ create table if not exists task
     node_id      bigint       not null default 0 comment '节点ID',
     node_code    varchar(100) not null default '' comment '节点编码',
     node_name    varchar(100) not null default '' comment '任务名称即节点名称',
-    assignee_id  varchar(100) not null default '' comment '任务执行人ID',
+    assignee_id  bigint       not null default 0 comment '任务执行人ID，candidate模式认领前为0',
     status       varchar(20)  not null default 'pending' comment '任务状态：pending, running, completed, skipped',
     started_at   datetime     null comment '开始时间',
+    claimed_at   datetime     null comment '认领时间(candidate模式)',
     ended_at     datetime     null comment '结束时间',
     remark       text comment '备注',
     created_at   datetime     not null default current_timestamp comment '创建时间',
@@ -150,6 +155,23 @@ create table if not exists task
   character set utf8mb4
   collate utf8mb4_unicode_ci comment '任务实例表';
 
+-- 任务候选人快照（candidate模式）
+create table if not exists task_candidate
+(
+    id          bigint auto_increment primary key comment '候选记录ID',
+    task_id     bigint      not null default 0 comment '任务实例ID',
+    user_id     bigint      not null default 0 comment '候选用户ID（仅用户）',
+    source_type varchar(20) not null default 'user' comment '来源类型: user, role',
+    source_id   bigint      not null default 0 comment '来源ID: user_id/role_id',
+    created_at  datetime    not null default current_timestamp comment '创建时间',
+    updated_at  datetime    not null default current_timestamp on update current_timestamp comment '更新时间',
+    unique key uk_task_user (task_id, user_id),
+    key idx_task (task_id),
+    key idx_user (user_id)
+) engine = InnoDB
+  character set utf8mb4
+  collate utf8mb4_unicode_ci comment '任务候选人快照表';
+
 -- 节点分配规则
 create table if not exists assignment
 (
@@ -158,13 +180,14 @@ create table if not exists assignment
     process_code varchar(100) not null default '' comment '流程编码',
     node_id      bigint       not null default 0 comment '节点ID',
     node_code    varchar(100) not null comment '节点编码',
-    type         varchar(20)  not null default 'user' comment '分配类型：user, role',
-    value        varchar(100) not null default '' comment '分配值，用户ID/角色ID',
+    principal_type varchar(20) not null default 'user' comment '主体类型: user, role',
+    principal_id bigint       not null default 0 comment '主体ID: user_id/role_id',
     priority     int          not null default 0 comment '优先级，值越小优先级越高',
     strategy     varchar(20)  not null default 'sequential' comment '分配策略：sequential-顺序分配-按优先级顺序，第一条规则满足就停止, parallel-并行分配-所有规则都生成任务',
     created_at   datetime     not null default current_timestamp comment '创建时间',
     updated_at   datetime     not null default current_timestamp on update current_timestamp comment '更新时间',
-    key idx_node (node_code)
+    key idx_node (node_code),
+    unique key uk_node_principal (node_id, principal_type, principal_id)
 ) engine = InnoDB
   character set utf8mb4
   collate utf8mb4_unicode_ci comment '节点用户/角色分配规则表';
@@ -187,6 +210,5 @@ create table if not exists log
 ) engine = InnoDB
   character set utf8mb4
   collate utf8mb4_unicode_ci comment '流程日志表';
-
 
 

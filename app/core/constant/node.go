@@ -6,3 +6,9 @@ const (
 	NodeTypeUserTask = "user_task"
 	NodeTypeEnd      = "end"
 )
+
+const (
+	NodeAssignModeSingle        = "single"
+	NodeAssignModeCandidate     = "candidate"
+	NodeAssignModeMultiInstance = "multi_instance"
+)

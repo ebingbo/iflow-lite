@@ -9,9 +9,7 @@ export default eventHandler(async (event) => {
   const response = await backendFetch<ApiResponse<UserProfile>>(event, '/api/user/profile/update', {
     method: 'POST',
     body: {
-      name: body?.name,
-      email: body?.email,
-      avatar: body?.avatar
+      name: body?.name
     }
   })
 

@@ -2,8 +2,10 @@ package service
 
 import (
 	"context"
+	"strconv"
 
 	"iflow-lite/dao"
+	"iflow-lite/type/dto"
 	"iflow-lite/type/input"
 	"iflow-lite/type/model"
 	"iflow-lite/type/output"
@@ -75,7 +77,49 @@ func (this *LogService) LogQuery(ctx context.Context, in *input.LogQueryInput) (
 		return nil, err
 	}
 
-	result.Items = items
+	ids := make([]uint64, 0, len(items))
+	seen := make(map[uint64]struct{}, len(items))
+	for _, item := range items {
+		if item.AssigneeID == "" {
+			continue
+		}
+		id, parseErr := strconv.ParseUint(item.AssigneeID, 10, 64)
+		if parseErr != nil || id == 0 {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		ids = append(ids, id)
+	}
+
+	userMap := map[uint64]*model.User{}
+	if len(ids) > 0 {
+		users, userErr := dao.DefaultUserDao.UserListByIDs(ctx, ids)
+		if userErr != nil {
+			return nil, userErr
+		}
+		userMap = make(map[uint64]*model.User, len(users))
+		for _, user := range users {
+			userMap[user.ID] = user
+		}
+	}
+
+	logItems := make([]*dto.Log, 0, len(items))
+	for _, item := range items {
+		logItem := &dto.Log{Log: item}
+		if item.AssigneeID != "" {
+			if id, parseErr := strconv.ParseUint(item.AssigneeID, 10, 64); parseErr == nil && id > 0 {
+				if user, ok := userMap[id]; ok {
+					logItem.AssigneeName = user.Name
+				}
+			}
+		}
+		logItems = append(logItems, logItem)
+	}
+
+	result.Items = logItems
 	result.Total = total
 	return result, nil
 }

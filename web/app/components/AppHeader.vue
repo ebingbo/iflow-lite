@@ -1,17 +1,18 @@
 <script setup lang="ts">
 const route = useRoute()
+const { user, logout } = useAuth()
 
-const items = computed(() => [
+const publicItems = computed(() => [
   {
-    label: '流程管理',
-    to: '/process'
+    label: '产品介绍',
+    to: '/'
   },
   {
     label: '文档中心',
     to: '/docs',
     active: route.path.startsWith('/docs')
   }, {
-    label: 'Pricing',
+    label: '价格',
     to: '/pricing'
   }, {
     label: '博客',
@@ -20,7 +21,44 @@ const items = computed(() => [
     label: '更新日志',
     to: '/changelog'
   }])
-const { user, logout } = useAuth()
+
+const consoleItems = computed(() => [
+  {
+    label: '仪表盘',
+    to: '/dashboard'
+  },
+  {
+    label: '流程管理',
+    to: '/process'
+  },
+  {
+    label: '任务中心',
+    to: '/tasks'
+  },
+  {
+    label: '流程运行',
+    to: '/execution'
+  },
+  {
+    label: '组织与权限',
+    children: [
+      {
+        label: '用户管理',
+        to: '/org/users'
+      },
+      {
+        label: '角色管理',
+        to: '/org/roles'
+      }
+    ]
+  },
+  {
+    label: '系统管理',
+    to: '/system'
+  }
+])
+
+const items = computed(() => user.value ? consoleItems.value : publicItems.value)
 
 const menus = computed(() => [
   [
@@ -38,13 +76,19 @@ const menus = computed(() => [
   ],
   [
     {
-      label: 'Profile',
-      icon: 'i-lucide-user'
+      label: '个人中心',
+      icon: 'i-lucide-user',
+      onSelect: () => navigateTo('/profile')
+    },
+    {
+      label: '控制台首页',
+      icon: 'i-lucide-layout-dashboard',
+      onSelect: () => navigateTo('/dashboard')
     }
   ],
   [
     {
-      label: 'Logout',
+      label: '退出登录',
       icon: 'i-lucide-log-out',
       kbds: ['shift', 'meta', 'q'],
       onSelect: () => {
@@ -59,7 +103,7 @@ const menus = computed(() => [
 <template>
   <UHeader>
     <template #left>
-      <NuxtLink to="/">
+      <NuxtLink :to="user ? '/dashboard' : '/'">
         <AppLogo class="w-auto h-12 shrink-0" />
       </NuxtLink>
     </template>

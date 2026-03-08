@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"strconv"
 	"time"
 
 	"iflow-lite/core/bootstrap/client"
@@ -16,6 +17,12 @@ import (
 var DefaultExecutionEngine = NewExecutionEngine()
 
 type ExecutionEngine struct {
+}
+
+type taskCandidatePrincipal struct {
+	UserID     uint64
+	SourceType string
+	SourceID   uint64
 }
 
 func NewExecutionEngine() *ExecutionEngine {
@@ -61,7 +68,7 @@ func (e *ExecutionEngine) ExecutionStart(ctx context.Context, processCode string
 	return execution, nil
 }
 
-func (e *ExecutionEngine) TaskComplete(ctx context.Context, taskID uint64, assigneeID string, remark string) error {
+func (e *ExecutionEngine) TaskComplete(ctx context.Context, taskID uint64, assigneeID uint64, remark string) error {
 	return client.MysqlDB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		task, err := dao.DefaultTaskDao.TaskGetWithTransaction(ctx, tx, taskID)
 		if err != nil {
@@ -94,7 +101,7 @@ func (e *ExecutionEngine) TaskComplete(ctx context.Context, taskID uint64, assig
 			NodeCode(task.NodeCode).
 			TaskID(task.ID).
 			Action(constant.LogActionCompleteTask).
-			AssigneeID(assigneeID).
+			AssigneeID(strconv.FormatUint(assigneeID, 10)).
 			Remark("完成任务").
 			Build()
 		if _, err := dao.DefaultLogDao.LogAddWithTransaction(ctx, tx, log); err != nil {
@@ -126,7 +133,53 @@ func (e *ExecutionEngine) TaskComplete(ctx context.Context, taskID uint64, assig
 	})
 }
 
-func (e *ExecutionEngine) TaskSkip(ctx context.Context, taskID uint64, assigneeID string) error {
+func (e *ExecutionEngine) TaskClaim(ctx context.Context, taskID uint64, userID uint64) error {
+	return client.MysqlDB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		task, err := dao.DefaultTaskDao.TaskGetWithTransaction(ctx, tx, taskID)
+		if err != nil {
+			return err
+		}
+		if task == nil {
+			return code.New(400, "task not found")
+		}
+		if task.Status != constant.TaskStatusPending || task.AssigneeID != 0 {
+			return code.New(400, "task already claimed")
+		}
+		exists, err := dao.DefaultTaskCandidateDao.TaskCandidateExistsWithTransaction(ctx, tx, taskID, userID)
+		if err != nil {
+			return err
+		}
+		if !exists {
+			return code.New(400, "not candidate user")
+		}
+
+		rowsAffected, err := dao.DefaultTaskDao.TaskClaimWithTransaction(ctx, tx, taskID, userID)
+		if err != nil {
+			return err
+		}
+		if rowsAffected == 0 {
+			return code.New(400, "task already claimed")
+		}
+
+		log := model.NewLogBuilder().
+			ProcessID(task.ProcessID).
+			ProcessCode(task.ProcessCode).
+			ExecutionID(task.ExecutionID).
+			NodeID(task.NodeID).
+			NodeCode(task.NodeCode).
+			TaskID(task.ID).
+			Action(constant.LogActionClaimTask).
+			AssigneeID(strconv.FormatUint(userID, 10)).
+			Remark("认领任务").
+			Build()
+		if _, err := dao.DefaultLogDao.LogAddWithTransaction(ctx, tx, log); err != nil {
+			return err
+		}
+		return nil
+	})
+}
+
+func (e *ExecutionEngine) TaskSkip(ctx context.Context, taskID uint64, assigneeID uint64) error {
 	return client.MysqlDB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		task, err := dao.DefaultTaskDao.TaskGetWithTransaction(ctx, tx, taskID)
 		if err != nil {
@@ -154,7 +207,7 @@ func (e *ExecutionEngine) TaskSkip(ctx context.Context, taskID uint64, assigneeI
 			NodeCode(task.NodeCode).
 			TaskID(task.ID).
 			Action(constant.LogActionSkipTask).
-			AssigneeID(assigneeID).
+			AssigneeID(strconv.FormatUint(assigneeID, 10)).
 			Remark("跳过任务").
 			Build()
 		if _, err := dao.DefaultLogDao.LogAddWithTransaction(ctx, tx, log); err != nil {
@@ -179,7 +232,7 @@ func (e *ExecutionEngine) TaskSkip(ctx context.Context, taskID uint64, assigneeI
 	})
 }
 
-func (e *ExecutionEngine) TaskDelegate(ctx context.Context, taskID uint64, fromAssigneeID string, toAssigneeID string) error {
+func (e *ExecutionEngine) TaskDelegate(ctx context.Context, taskID uint64, fromAssigneeID uint64, toAssigneeID uint64) error {
 	return client.MysqlDB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		task, err := dao.DefaultTaskDao.TaskGetWithTransaction(ctx, tx, taskID)
 		if err != nil {
@@ -203,7 +256,7 @@ func (e *ExecutionEngine) TaskDelegate(ctx context.Context, taskID uint64, fromA
 			NodeCode(task.NodeCode).
 			TaskID(task.ID).
 			Action(constant.LogActionDelegateTask).
-			AssigneeID(fromAssigneeID).
+			AssigneeID(strconv.FormatUint(fromAssigneeID, 10)).
 			Remark("委托任务").
 			Build()
 		if _, err := dao.DefaultLogDao.LogAddWithTransaction(ctx, tx, log); err != nil {
@@ -298,11 +351,15 @@ func (e *ExecutionEngine) taskCreateForEndNode(ctx context.Context, tx *gorm.DB,
 }
 
 func (e *ExecutionEngine) taskCreateForUserTaskNode(ctx context.Context, tx *gorm.DB, execution *model.Execution, node *model.Node) error {
-	assignees := e.assigneeList(ctx, tx, execution, node)
-	if len(assignees) == 0 {
+	principals, err := e.resolveTaskCandidatePrincipals(ctx, tx, execution, node)
+	if err != nil {
+		return err
+	}
+	if len(principals) == 0 {
 		return code.New(400, "no assignee")
 	}
-	for _, assignee := range assignees {
+
+	if node.AssignMode == constant.NodeAssignModeCandidate {
 		task := model.NewTaskBuilder().
 			ProcessID(execution.ProcessID).
 			ProcessCode(execution.ProcessCode).
@@ -311,13 +368,26 @@ func (e *ExecutionEngine) taskCreateForUserTaskNode(ctx context.Context, tx *gor
 			NodeID(node.ID).
 			NodeCode(node.Code).
 			NodeName(node.Name).
-			AssigneeID(assignee).
-			Status(constant.TaskStatusRunning).
-			StartedAt(time.Now()).
+			AssigneeID(0).
+			Status(constant.TaskStatusPending).
 			Build()
 		if _, err := dao.DefaultTaskDao.TaskAddWithTransaction(ctx, tx, task); err != nil {
 			return err
 		}
+
+		candidates := make([]*model.TaskCandidate, 0, len(principals))
+		for _, principal := range principals {
+			candidates = append(candidates, &model.TaskCandidate{
+				TaskID:     task.ID,
+				UserID:     principal.UserID,
+				SourceType: principal.SourceType,
+				SourceID:   principal.SourceID,
+			})
+		}
+		if err := dao.DefaultTaskCandidateDao.TaskCandidateBatchAddWithTransaction(ctx, tx, candidates); err != nil {
+			return err
+		}
+
 		log := model.NewLogBuilder().
 			ProcessID(execution.ProcessID).
 			ProcessCode(execution.ProcessCode).
@@ -326,35 +396,99 @@ func (e *ExecutionEngine) taskCreateForUserTaskNode(ctx context.Context, tx *gor
 			NodeCode(node.Code).
 			TaskID(task.ID).
 			Action(constant.LogActionCreateTask).
-			AssigneeID(assignee).
-			Remark("创建任务").
+			Remark("创建候选任务").
 			Build()
 		if _, err := dao.DefaultLogDao.LogAddWithTransaction(ctx, tx, log); err != nil {
 			return err
 		}
-		// todo 发送任务创建通知
+		return nil
+	}
+
+	assignee := principals[0].UserID
+	task := model.NewTaskBuilder().
+		ProcessID(execution.ProcessID).
+		ProcessCode(execution.ProcessCode).
+		ProcessName(execution.ProcessName).
+		ExecutionID(execution.ID).
+		NodeID(node.ID).
+		NodeCode(node.Code).
+		NodeName(node.Name).
+		AssigneeID(assignee).
+		Status(constant.TaskStatusRunning).
+		StartedAt(time.Now()).
+		Build()
+	if _, err := dao.DefaultTaskDao.TaskAddWithTransaction(ctx, tx, task); err != nil {
+		return err
+	}
+	log := model.NewLogBuilder().
+		ProcessID(execution.ProcessID).
+		ProcessCode(execution.ProcessCode).
+		ExecutionID(execution.ID).
+		NodeID(node.ID).
+		NodeCode(node.Code).
+		TaskID(task.ID).
+		Action(constant.LogActionCreateTask).
+		AssigneeID(strconv.FormatUint(assignee, 10)).
+		Remark("创建任务").
+		Build()
+	if _, err := dao.DefaultLogDao.LogAddWithTransaction(ctx, tx, log); err != nil {
+		return err
 	}
 	return nil
 }
 
-func (e *ExecutionEngine) assigneeList(ctx context.Context, tx *gorm.DB, execution *model.Execution, node *model.Node) []string {
-	assigneeList, err := dao.DefaultAssignmentDao.AssignmentListWithTransaction(ctx, tx, map[string]interface{}{"node_id": node.ID})
+func (e *ExecutionEngine) resolveTaskCandidatePrincipals(ctx context.Context, tx *gorm.DB, execution *model.Execution, node *model.Node) ([]taskCandidatePrincipal, error) {
+	assignmentList, err := dao.DefaultAssignmentDao.AssignmentListWithTransaction(ctx, tx, map[string]interface{}{"node_id": node.ID})
 	if err != nil {
-		return nil
+		return nil, err
 	}
-	var assignees []string
-	for _, assignee := range assigneeList {
-		if assignee.Type == constant.AssignmentTypeUser {
-			assignees = append(assignees, assignee.Value)
+	candidates := make([]taskCandidatePrincipal, 0)
+	seenUser := make(map[uint64]struct{})
+	for _, assignment := range assignmentList {
+		if assignment.PrincipalType == constant.AssignmentTypeUser && assignment.PrincipalID > 0 {
+			if _, ok := seenUser[assignment.PrincipalID]; ok {
+				continue
+			}
+			seenUser[assignment.PrincipalID] = struct{}{}
+			candidates = append(candidates, taskCandidatePrincipal{
+				UserID:     assignment.PrincipalID,
+				SourceType: constant.AssignmentTypeUser,
+				SourceID:   assignment.PrincipalID,
+			})
+			continue
 		}
-		if assignee.Type == constant.AssignmentTypeRole {
-			// todo 获取角色用户列表
+		if assignment.PrincipalType == constant.AssignmentTypeRole && assignment.PrincipalID > 0 {
+			userIDs, roleErr := dao.DefaultUserDao.UserIDListByRoleIDWithTransaction(ctx, tx, assignment.PrincipalID)
+			if roleErr != nil {
+				return nil, roleErr
+			}
+			for _, userID := range userIDs {
+				if userID == 0 {
+					continue
+				}
+				if _, ok := seenUser[userID]; ok {
+					continue
+				}
+				seenUser[userID] = struct{}{}
+				candidates = append(candidates, taskCandidatePrincipal{
+					UserID:     userID,
+					SourceType: constant.AssignmentTypeRole,
+					SourceID:   assignment.PrincipalID,
+				})
+			}
 		}
 	}
-	if len(assignees) == 0 {
-		assignees = append(assignees, execution.CreatedBy)
+	if len(candidates) == 0 {
+		createdBy, parseErr := strconv.ParseUint(execution.CreatedBy, 10, 64)
+		if parseErr == nil && createdBy > 0 {
+			candidates = append(candidates, taskCandidatePrincipal{
+				UserID:     createdBy,
+				SourceType: constant.AssignmentTypeUser,
+				SourceID:   createdBy,
+			})
+		}
 	}
-	return assignees
+	return candidates, nil
 }
 func (e *ExecutionEngine) nextTaskCreate(ctx context.Context, tx *gorm.DB, execution *model.Execution, node *model.Node) error {
 	nextNodes, err := e.nextNodeList(ctx, tx, node)

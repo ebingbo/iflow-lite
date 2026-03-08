@@ -15,6 +15,9 @@ export default eventHandler(async (event) => {
       name: body?.name,
       code: body?.code,
       type: body?.type,
+      assign_mode: body?.assign_mode,
+      x: body?.x,
+      y: body?.y,
       description: body?.description
     }
   })

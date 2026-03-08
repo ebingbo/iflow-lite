@@ -30,20 +30,6 @@ const fields = [{
   type: 'checkbox' as const
 }]
 
-const providers = [{
-  label: 'Google',
-  icon: 'i-simple-icons-google',
-  onClick: () => {
-    toast.add({ title: 'Google', description: 'Login with Google' })
-  }
-}, {
-  label: 'GitHub',
-  icon: 'i-simple-icons-github',
-  onClick: () => {
-    toast.add({ title: 'GitHub', description: 'Login with GitHub' })
-  }
-}]
-
 const schema = z.object({
   email: z.email('非法邮箱'),
   password: z.string('密码必填').min(8, '至少8个字符')
@@ -66,7 +52,7 @@ async function onSubmit(event: FormSubmitEvent<Schema>) {
       description: '欢迎回来',
       color: 'success'
     })
-    await navigateTo('/')
+    await navigateTo('/dashboard')
   } catch (error) {
     toast.add({
       title: '登录失败',
@@ -102,7 +88,7 @@ async function onSubmit(event: FormSubmitEvent<Schema>) {
 
     <template #password-hint>
       <ULink
-        to="/"
+        to="/forgot-password"
         class="text-primary font-medium"
         tabindex="-1"
       >忘记密码？

@@ -1,5 +1,5 @@
 import type { ApiResponse } from '~/types/api'
-import type { UserLoginData, UserPasswordUpdateBody, UserProfile, UserProfileUpdateBody } from '~/types/user'
+import type { UserLoginData, UserPasswordForgotBody, UserPasswordUpdateBody, UserProfile, UserProfileUpdateBody } from '~/types/user'
 
 export function useAuth() {
   const token = useCookie<string | null>('auth_token', {
@@ -69,6 +69,13 @@ export function useAuth() {
     })
   }
 
+  async function forgotPassword(body: UserPasswordForgotBody) {
+    return $fetch<ApiResponse<null>>('/api/user/password/forgot', {
+      method: 'POST',
+      body
+    })
+  }
+
   return {
     token,
     user,
@@ -77,6 +84,7 @@ export function useAuth() {
     logout,
     fetchProfile,
     updateProfile,
-    updatePassword
+    updatePassword,
+    forgotPassword
   }
 }

@@ -2,6 +2,7 @@
 import type { Assignment } from '~/types/assignment'
 import { type Node, type NodeType, nodeTypeConfigs } from '~/types/node'
 import type { Transition } from '~/types/transition'
+import type { RoleOption, UserOption } from '~/types/user'
 
 type WorkflowNode = Node & { _draft?: boolean }
 type WorkflowEdge = Transition & { _draft?: boolean }
@@ -10,7 +11,9 @@ const route = useRoute()
 const { getProcess } = useProcessApi()
 const { addNode, updateNode, deleteNode: deleteNodeApi } = useNodeApi()
 const { addTransition, deleteTransition } = useTransitionApi()
-const { addAssignment, updateAssignment, deleteAssignment } = useAssignmentApi()
+const { addAssignment, deleteAssignment } = useAssignmentApi()
+const { listUsers } = useUserApi()
+const { listRoles } = useRoleApi()
 const toast = useToast()
 const id = computed(() => Number(route.params.id))
 const NODE_WIDTH = 160
@@ -51,9 +54,9 @@ const nodeTypeOptions = computed(() => {
     value
   }))
 })
-const assignTypeOptions = [
-  { label: '指定用户', value: 'user' },
-  { label: '指定角色', value: 'role' }
+const assignModeOptions = [
+  { label: '单人处理(single)', value: 'single' },
+  { label: '候选认领(candidate)', value: 'candidate' }
 ] as const
 
 useSeoMeta({
@@ -71,11 +74,18 @@ const creatingNode = ref(false)
 const deletingNode = ref(false)
 const draftNodeSeed = ref(-1)
 const lastPickedNodeType = ref<NodeType | null>(null)
+const principalLoading = ref(false)
+const principalKeyword = ref('')
+const principalSearchTimer = ref<ReturnType<typeof setTimeout> | null>(null)
+const assignmentUserID = ref('')
+const assignmentRoleID = ref('')
 
 // 节点数据
 const nodes = ref<WorkflowNode[]>([])
 const edges = ref<WorkflowEdge[]>([])
 const assignments = ref<Assignment[]>([])
+const userOptions = ref<UserOption[]>([])
+const roleOptions = ref<RoleOption[]>([])
 
 // 计算属性
 const currentNodes = computed(() => nodes.value)
@@ -115,6 +125,14 @@ const configTabItems = computed(() => [
     disabled: !selectedNode.value || !!selectedNode.value._draft
   }
 ])
+const userSelectItems = computed(() => userOptions.value.map(item => ({
+  label: `${item.name} (${item.email})`,
+  value: String(item.id)
+})))
+const roleSelectItems = computed(() => roleOptions.value.map(item => ({
+  label: `${item.name} (${item.code})`,
+  value: String(item.id)
+})))
 
 const viewBox = computed(() => {
   return `${viewBounds.value.x} ${viewBounds.value.y} ${viewBounds.value.width} ${viewBounds.value.height}`
@@ -146,7 +164,50 @@ const getNodeRingClass = (type: string | undefined) => {
 }
 
 const getNodeHeight = (node: WorkflowNode): number => {
-  return node.type === 'user_task' && node.assignTo && node.assignTo.length > 0 ? 85 : 70
+  if (node.type !== 'user_task') return 70
+  const nodeAssignments = getNodeAssignments(node)
+  const hasUser = nodeAssignments.some(item => item.principal_type === 'user')
+  const hasRole = nodeAssignments.some(item => item.principal_type === 'role')
+  const lineCount = Number(hasUser) + Number(hasRole)
+  return lineCount > 0 ? 70 + lineCount * 16 : 70
+}
+
+const getNodeAssignments = (node: WorkflowNode): Assignment[] => {
+  if (!node.id) return []
+  return assignments.value
+    .filter(item => item.node_id === node.id)
+    .sort((a, b) => a.priority - b.priority || a.id - b.id)
+}
+
+const getPrincipalLabel = (item: Assignment): string => {
+  if (item.principal_type === 'role') {
+    const role = roleOptions.value.find(roleItem => roleItem.id === item.principal_id)
+    return role ? `角色:${role.name}` : `角色#${item.principal_id}`
+  }
+  const user = userOptions.value.find(userItem => userItem.id === item.principal_id)
+  return user ? `用户:${user.name}` : `用户#${item.principal_id}`
+}
+
+const getNodeAssigneeText = (node: WorkflowNode): string => {
+  const item = getNodeAssignments(node).find(item => item.principal_type === 'user')
+  return item ? getPrincipalLabel(item).replace('用户:', '') : ''
+}
+
+const getNodeRoleText = (node: WorkflowNode): string => {
+  const item = getNodeAssignments(node).find(item => item.principal_type === 'role')
+  return item ? getPrincipalLabel(item).replace('角色:', '') : ''
+}
+
+const getNodeAssignmentTextY = (node: WorkflowNode, type: 'user' | 'role'): number => {
+  const hasUser = !!getNodeAssigneeText(node)
+  const hasRole = !!getNodeRoleText(node)
+  const lineCount = Number(hasUser) + Number(hasRole)
+  const top = 45
+  const height = getNodeHeight(node) - 53
+  const centerY = top + height / 2
+  if (lineCount <= 1) return centerY
+  if (type === 'user') return centerY - 8
+  return centerY + 8
 }
 
 const getEdgeNodes = (edge: WorkflowEdge) => {
@@ -267,34 +328,24 @@ const buildAutoLayout = (rawNodes: WorkflowNode[], rawEdges: WorkflowEdge[]) => 
   return layout
 }
 
-const normalizeNodes = (rawNodes: WorkflowNode[], rawEdges: WorkflowEdge[], rawAssignments: Assignment[]): WorkflowNode[] => {
+const normalizeNodes = (rawNodes: WorkflowNode[], rawEdges: WorkflowEdge[]): WorkflowNode[] => {
   const autoLayout = buildAutoLayout(rawNodes, rawEdges)
-  const assignmentMap = new Map<number, Assignment[]>()
-
-  for (const item of rawAssignments) {
-    const list = assignmentMap.get(item.node_id) ?? []
-    list.push(item)
-    assignmentMap.set(item.node_id, list)
-  }
 
   return rawNodes.map((item, index) => {
     const normalizedType = normalizeNodeType(item.type)
     const autoPosition = item.id ? autoLayout.get(item.id) : null
-    const x = typeof item.x === 'number' ? item.x : (autoPosition?.x ?? 80 + (index % 4) * NODE_SPACING_X)
-    const y = typeof item.y === 'number' ? item.y : (autoPosition?.y ?? 80 + Math.floor(index / 4) * NODE_SPACING_Y)
-    const nodeAssignments = item.id ? (assignmentMap.get(item.id) ?? []) : []
-    const primaryAssignment = nodeAssignments[0]
-    const assignType = primaryAssignment?.type as Node['assignType'] | undefined
-    const assignTo = primaryAssignment?.value ? [primaryAssignment.value] : []
-
+    const hasExplicitPosition = typeof item.x === 'number'
+      && typeof item.y === 'number'
+      && !(item.x === 0 && item.y === 0)
+    const x = hasExplicitPosition ? item.x : (autoPosition?.x ?? 80 + (index % 4) * NODE_SPACING_X)
+    const y = hasExplicitPosition ? item.y : (autoPosition?.y ?? 80 + Math.floor(index / 4) * NODE_SPACING_Y)
     return {
       ...item,
       id: item.id ?? Date.now() + index,
       type: normalizedType,
       x,
       y,
-      assignType: item.assignType ?? assignType ?? (normalizedType === 'user_task' ? 'user' : null),
-      assignTo: Array.isArray(item.assignTo) && item.assignTo.length > 0 ? item.assignTo : assignTo
+      assign_mode: item.assign_mode || 'single'
     }
   })
 }
@@ -316,7 +367,7 @@ watch(
   async (payload) => {
     if (!payload) return
 
-    const normalizedNodes = normalizeNodes(payload.nodes ?? [], payload.transitions ?? [], payload.assignments ?? [])
+    const normalizedNodes = normalizeNodes(payload.nodes ?? [], payload.transitions ?? [])
     nodes.value = normalizedNodes
     edges.value = normalizeTransitions(payload.transitions ?? [], normalizedNodes)
     assignments.value = payload.assignments ?? []
@@ -468,8 +519,7 @@ const addNewNode = async (type: NodeType) => {
     updated_by_name: '',
     created_at: '',
     updated_at: '',
-    assignType: type === 'user_task' ? 'user' : null,
-    assignTo: [],
+    assign_mode: 'single',
     _draft: true
   }
   draftNodeSeed.value -= 1
@@ -592,6 +642,9 @@ const saveNodeConfig = async () => {
         name,
         code,
         type: current.type,
+        assign_mode: current.assign_mode || 'single',
+        x: Math.round(current.x),
+        y: Math.round(current.y),
         description: current.description || ''
       })
       creatingNode.value = false
@@ -603,8 +656,6 @@ const saveNodeConfig = async () => {
         id: created.id,
         x: current.x,
         y: current.y,
-        assignType: current.assignType,
-        assignTo: current.assignTo,
         _draft: false
       }
 
@@ -620,6 +671,9 @@ const saveNodeConfig = async () => {
       await updateNode({
         id: current.id,
         tag: current.tag || current.name,
+        assign_mode: current.assign_mode || 'single',
+        x: Math.round(current.x),
+        y: Math.round(current.y),
         description: current.description || ''
       })
     }
@@ -683,44 +737,45 @@ const saveAssignmentConfig = async () => {
 
   try {
     const currentNodeAssignments = assignments.value.filter(item => item.node_id === current.id)
-    const targetAssignValue = (current.assignTo?.[0] ?? '').trim()
-    const targetAssignType = current.assignType || 'user'
-    const sortedExisting = [...currentNodeAssignments].sort((a, b) => a.id - b.id)
-    const primaryExisting = sortedExisting[0]
+    const mode = current.assign_mode || 'single'
+    const targets: Array<{ principal_type: 'user' | 'role', principal_id: number }> = []
+    const userID = Number((assignmentUserID.value || '').trim())
+    const roleID = Number((assignmentRoleID.value || '').trim())
 
-    if (targetAssignValue) {
-      if (primaryExisting) {
-        const updated = await updateAssignment({
-          id: primaryExisting.id,
-          type: targetAssignType,
-          value: targetAssignValue,
-          priority: primaryExisting.priority ?? 0,
-          strategy: primaryExisting.strategy || 'sequential'
-        })
-        assignments.value = assignments.value.map(item => item.id === updated.id ? updated : item)
-      } else {
-        const created = await addAssignment({
-          process_id: id.value,
-          node_id: current.id,
-          type: targetAssignType,
-          value: targetAssignValue,
-          priority: 0,
-          strategy: 'sequential'
-        })
-        assignments.value.push(created)
-      }
+    if (Number.isInteger(userID) && userID > 0) {
+      targets.push({
+        principal_type: 'user',
+        principal_id: userID
+      })
+    }
+    if (mode !== 'single' && Number.isInteger(roleID) && roleID > 0) {
+      targets.push({
+        principal_type: 'role',
+        principal_id: roleID
+      })
     }
 
-    const redundant = targetAssignValue
-      ? sortedExisting.slice(1)
-      : sortedExisting
-    for (const item of redundant) {
+    for (const item of currentNodeAssignments) {
       await deleteAssignment(item.id)
     }
-    if (redundant.length > 0) {
-      const deletingIds = new Set(redundant.map(item => item.id))
-      assignments.value = assignments.value.filter(item => !deletingIds.has(item.id))
+
+    const createdAssignments: Assignment[] = []
+    for (let index = 0; index < targets.length; index += 1) {
+      const target = targets[index]
+      if (!target) continue
+      createdAssignments.push(await addAssignment({
+        process_id: id.value,
+        node_id: current.id,
+        principal_type: target.principal_type,
+        principal_id: target.principal_id,
+        priority: index,
+        strategy: mode === 'candidate' ? 'parallel' : 'sequential'
+      }))
     }
+
+    assignments.value = assignments.value
+      .filter(item => item.node_id !== current.id)
+      .concat(createdAssignments)
 
     toast.add({
       title: '保存成功',
@@ -857,6 +912,77 @@ const exportData = () => {
 const retryLoad = async () => {
   await refresh()
 }
+
+const loadPrincipalOptions = async (keyword = '') => {
+  principalLoading.value = true
+  try {
+    const [users, roles] = await Promise.all([
+      listUsers({ size: 200, keyword }),
+      listRoles({ size: 200, keyword })
+    ])
+    userOptions.value = users
+    roleOptions.value = roles
+  } catch (err: unknown) {
+    toast.add({
+      title: '加载分派选项失败',
+      description: err instanceof Error ? err.message : '用户或角色列表加载失败',
+      color: 'warning'
+    })
+  } finally {
+    principalLoading.value = false
+  }
+}
+
+onMounted(() => {
+  loadPrincipalOptions()
+})
+
+const syncAssignmentSlots = () => {
+  if (!selectedNode.value || selectedNode.value._draft || selectedNode.value.type !== 'user_task') {
+    assignmentUserID.value = ''
+    assignmentRoleID.value = ''
+    return
+  }
+  const nodeAssignments = assignments.value
+    .filter(item => item.node_id === selectedNode.value!.id)
+    .sort((a, b) => a.priority - b.priority || a.id - b.id)
+  const userAssignment = nodeAssignments.find(item => item.principal_type === 'user')
+  const roleAssignment = nodeAssignments.find(item => item.principal_type === 'role')
+  assignmentUserID.value = userAssignment ? String(userAssignment.principal_id) : ''
+  assignmentRoleID.value = roleAssignment ? String(roleAssignment.principal_id) : ''
+}
+
+const assignmentSignature = computed(() => assignments.value
+  .map(item => `${item.id}:${item.node_id}:${item.principal_type}:${item.principal_id}`)
+  .join('|'))
+
+watch(
+  () => [selectedNode.value?.id, assignmentSignature.value],
+  () => {
+    syncAssignmentSlots()
+  },
+  { immediate: true }
+)
+
+watch(
+  () => selectedNode.value?.assign_mode,
+  (mode) => {
+    if (!selectedNode.value || selectedNode.value.type !== 'user_task') return
+    const assignMode = mode || 'single'
+    if (assignMode === 'single') {
+      assignmentRoleID.value = ''
+    }
+  }
+)
+
+watch(principalKeyword, (keyword) => {
+  if (principalSearchTimer.value) {
+    clearTimeout(principalSearchTimer.value)
+  }
+  principalSearchTimer.value = setTimeout(() => {
+    loadPrincipalOptions(keyword.trim())
+  }, 300)
+})
 </script>
 
 <template>
@@ -1148,6 +1274,12 @@ const retryLoad = async () => {
               @mousedown.stop="handleNodeMouseDown($event, node)"
               @mouseup.stop="handleNodeMouseUp($event, node)"
             >
+              <title
+                v-if="node.type === 'user_task' && getNodeAssignments(node).length > 0"
+              >
+                {{ getNodeAssignments(node).map(getPrincipalLabel).join('\n') }}
+              </title>
+
               <rect
                 x="0"
                 y="0"
@@ -1201,23 +1333,34 @@ const retryLoad = async () => {
                 {{ node.name }}
               </text>
 
-              <g v-if="node.type === 'user_task' && node.assignTo && node.assignTo.length > 0">
+              <g v-if="node.type === 'user_task' && getNodeAssignments(node).length > 0">
                 <rect
                   x="8"
                   y="45"
                   width="144"
-                  height="32"
+                  :height="getNodeHeight(node) - 53"
                   rx="4"
                   class="fill-info/10"
                 />
                 <text
+                  v-if="getNodeAssigneeText(node)"
                   x="14"
-                  y="61"
+                  :y="getNodeAssignmentTextY(node, 'user')"
                   dominant-baseline="middle"
                   alignment-baseline="middle"
-                  class="fill-info text-xs"
+                  class="fill-info text-[11px]"
                 >
-                  {{ node.assignTo.join(', ') }}
+                  执行人: {{ getNodeAssigneeText(node) }}
+                </text>
+                <text
+                  v-if="getNodeRoleText(node)"
+                  x="14"
+                  :y="getNodeAssignmentTextY(node, 'role')"
+                  dominant-baseline="middle"
+                  alignment-baseline="middle"
+                  class="fill-info text-[11px]"
+                >
+                  执行角色: {{ getNodeRoleText(node) }}
                 </text>
               </g>
 
@@ -1334,6 +1477,20 @@ const retryLoad = async () => {
                   />
                 </UFormField>
 
+                <UFormField
+                  v-if="selectedNode.type === 'user_task'"
+                  label="分派模式"
+                >
+                  <USelect
+                    v-model="selectedNode.assign_mode"
+                    class="w-full"
+                    :items="assignModeOptions"
+                    value-key="value"
+                    label-key="label"
+                    @change="updateNodeField('assign_mode', selectedNode.assign_mode)"
+                  />
+                </UFormField>
+
                 <UFormField label="节点标签">
                   <UInput
                     v-model="selectedNode.tag"
@@ -1407,24 +1564,54 @@ const retryLoad = async () => {
                 v-else
                 class="space-y-4"
               >
-                <UFormField label="分配方式">
-                  <USelect
-                    v-model="selectedNode.assignType"
-                    class="w-full"
-                    :items="assignTypeOptions"
-                    value-key="value"
-                    label-key="label"
-                    @change="updateNodeField('assignType', selectedNode.assignType)"
-                  />
+                <UInput
+                  v-model="principalKeyword"
+                  class="w-full"
+                  placeholder="搜索用户姓名/邮箱/角色名称/编码"
+                  icon="i-lucide-search"
+                />
+
+                <UFormField label="执行人">
+                  <div class="flex items-center gap-2">
+                    <USelect
+                      v-model="assignmentUserID"
+                      class="w-full"
+                      :items="userSelectItems"
+                      value-key="value"
+                      label-key="label"
+                      :loading="principalLoading"
+                      placeholder="请选择执行人"
+                    />
+                    <UButton
+                      icon="i-lucide-x"
+                      color="neutral"
+                      variant="soft"
+                      :disabled="!assignmentUserID"
+                      @click="assignmentUserID = ''"
+                    />
+                  </div>
                 </UFormField>
 
-                <UFormField :label="selectedNode.assignType === 'role' ? '执行角色' : '执行用户'">
-                  <UInput
-                    :model-value="selectedNode.assignTo?.[0] || ''"
-                    class="w-full"
-                    :placeholder="selectedNode.assignType === 'role' ? '请输入角色编码或名称' : '请输入用户ID或账号'"
-                    @update:model-value="(val: string) => updateNodeField('assignTo', [val])"
-                  />
+                <UFormField label="执行角色">
+                  <div class="flex items-center gap-2">
+                    <USelect
+                      v-model="assignmentRoleID"
+                      class="w-full"
+                      :items="roleSelectItems"
+                      value-key="value"
+                      label-key="label"
+                      :loading="principalLoading"
+                      placeholder="请选择执行角色"
+                      :disabled="(selectedNode.assign_mode || 'single') === 'single'"
+                    />
+                    <UButton
+                      icon="i-lucide-x"
+                      color="neutral"
+                      variant="soft"
+                      :disabled="!assignmentRoleID || (selectedNode.assign_mode || 'single') === 'single'"
+                      @click="assignmentRoleID = ''"
+                    />
+                  </div>
                 </UFormField>
 
                 <UButton

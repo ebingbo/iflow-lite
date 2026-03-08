@@ -1,14 +1,28 @@
 export default defineNuxtRouteMiddleware(async (to) => {
-  if (to.path === '/login' || to.path === '/signup') {
+  const publicPrefixes = ['/', '/docs', '/pricing', '/blog', '/changelog', '/login', '/signup', '/forgot-password']
+  const protectedPrefixes = ['/dashboard', '/process', '/tasks', '/execution', '/org', '/system', '/profile']
+  const isPublicRoute = publicPrefixes.some(prefix => prefix === '/'
+    ? to.path === '/'
+    : to.path === prefix || to.path.startsWith(`${prefix}/`))
+  const isProtectedRoute = protectedPrefixes.some(prefix => to.path === prefix || to.path.startsWith(`${prefix}/`))
+
+  const { token, user, fetchProfile, logout } = useAuth()
+  if (isPublicRoute) {
+    if (token.value && !user.value) {
+      try {
+        await fetchProfile()
+      } catch {
+        logout()
+      }
+    }
     return
   }
 
-  const { token, user, fetchProfile, logout } = useAuth()
-  if (!token.value) {
+  if (isProtectedRoute && !token.value) {
     return navigateTo('/login')
   }
 
-  if (!user.value) {
+  if (token.value && !user.value) {
     try {
       await fetchProfile()
     } catch {

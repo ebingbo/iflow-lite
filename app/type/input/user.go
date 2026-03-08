@@ -20,4 +20,18 @@ type (
 		Email    string `json:"email" form:"email" binding:"required" example:"bill@126.com"`
 		Password string `json:"password" form:"password" binding:"required" example:"123456"`
 	}
+	UserListInput struct {
+		Keyword string `json:"keyword" form:"keyword"`
+		Size    int    `json:"size" form:"size"`
+	}
+	UserProfileUpdateInput struct {
+		Name string `json:"name" binding:"required"`
+	}
+	UserPasswordUpdateInput struct {
+		OldPassword string `json:"old_password" binding:"required"`
+		NewPassword string `json:"new_password" binding:"required"`
+	}
+	UserPasswordForgotInput struct {
+		Email string `json:"email" binding:"required"`
+	}
 )

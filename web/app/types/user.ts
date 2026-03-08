@@ -6,6 +6,28 @@ export interface UserProfile {
   updated_at: string
 }
 
+export interface UserListBody {
+  keyword?: string
+  size?: number
+}
+
+export interface UserOption {
+  id: number
+  name: string
+  email: string
+}
+
+export interface RoleListBody {
+  keyword?: string
+  size?: number
+}
+
+export interface RoleOption {
+  id: number
+  name: string
+  code: string
+}
+
 export interface UserLoginBody {
   email: string
   password: string
@@ -29,4 +51,8 @@ export interface UserProfileUpdateBody {
 export interface UserPasswordUpdateBody {
   old_password: string
   new_password: string
+}
+
+export interface UserPasswordForgotBody {
+  email: string
 }

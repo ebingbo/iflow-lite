@@ -49,6 +49,21 @@ func (builder *NodeBuilder) Type(typeStr string) *NodeBuilder {
 	return builder
 }
 
+func (builder *NodeBuilder) AssignMode(assignMode string) *NodeBuilder {
+	builder.item.AssignMode = assignMode
+	return builder
+}
+
+func (builder *NodeBuilder) X(x int) *NodeBuilder {
+	builder.item.X = x
+	return builder
+}
+
+func (builder *NodeBuilder) Y(y int) *NodeBuilder {
+	builder.item.Y = y
+	return builder
+}
+
 func (builder *NodeBuilder) Description(description string) *NodeBuilder {
 	builder.item.Description = description
 	return builder

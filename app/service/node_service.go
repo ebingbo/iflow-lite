@@ -36,6 +36,11 @@ func (this *NodeService) NodeUpdate(ctx context.Context, in *input.NodeUpdateInp
 		return nil, err
 	}
 	node.Tag = in.Tag
+	if in.AssignMode != "" {
+		node.AssignMode = in.AssignMode
+	}
+	node.X = in.X
+	node.Y = in.Y
 	node.Description = in.Description
 	if err := dao.DefaultNodeDao.NodeUpdate(ctx, node); err != nil {
 		return nil, err
@@ -50,6 +55,10 @@ func (this *NodeService) NodeAdd(ctx context.Context, in *input.NodeAddInput) (i
 	if process == nil {
 		return nil, errors.New("process not found")
 	}
+	assignMode := in.AssignMode
+	if assignMode == "" {
+		assignMode = "single"
+	}
 	m := model.NewNodeBuilder().
 		ProcessID(in.ProcessID).
 		ProcessCode(process.Code).
@@ -57,6 +66,9 @@ func (this *NodeService) NodeAdd(ctx context.Context, in *input.NodeAddInput) (i
 		Name(in.Name).
 		Code(in.Code).
 		Type(in.Type).
+		AssignMode(assignMode).
+		X(in.X).
+		Y(in.Y).
 		Description(in.Description).
 		CreatedBy(util.UIDWithContext(ctx)).
 		UpdatedBy(util.UIDWithContext(ctx)).

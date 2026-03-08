@@ -44,7 +44,7 @@ func (builder *TaskBuilder) NodeName(name string) *TaskBuilder {
 	builder.task.NodeName = name
 	return builder
 }
-func (builder *TaskBuilder) AssigneeID(id string) *TaskBuilder {
+func (builder *TaskBuilder) AssigneeID(id uint64) *TaskBuilder {
 	builder.task.AssigneeID = id
 	return builder
 }
@@ -58,6 +58,10 @@ func (builder *TaskBuilder) StartedAt(t time.Time) *TaskBuilder {
 }
 func (builder *TaskBuilder) EndedAt(t time.Time) *TaskBuilder {
 	builder.task.EndedAt = &t
+	return builder
+}
+func (builder *TaskBuilder) ClaimedAt(t time.Time) *TaskBuilder {
+	builder.task.ClaimedAt = &t
 	return builder
 }
 

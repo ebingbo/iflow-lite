@@ -6,8 +6,10 @@ import (
 
 	"iflow-lite/core/code"
 	"iflow-lite/core/constant"
+	"iflow-lite/core/util"
 	"iflow-lite/dao"
 	"iflow-lite/engine"
+	"iflow-lite/type/dto"
 	"iflow-lite/type/input"
 	"iflow-lite/type/model"
 	"iflow-lite/type/output"
@@ -78,7 +80,7 @@ func (this *TaskService) TaskQuery(ctx context.Context, in *input.TaskQueryInput
 	if in.ExecutionID > 0 {
 		cond["execution_id"] = in.ExecutionID
 	}
-	if in.AssigneeID != "" {
+	if in.AssigneeID > 0 {
 		cond["assignee_id"] = in.AssigneeID
 	}
 	if in.Status != "" {
@@ -100,8 +102,86 @@ func (this *TaskService) TaskQuery(ctx context.Context, in *input.TaskQueryInput
 	return result, nil
 }
 
+func (this *TaskService) TaskClaimableQuery(ctx context.Context, in *input.TaskClaimableQueryInput) (interface{}, error) {
+	result := new(output.TaskQueryOutput)
+	uid := util.UIDWithContext(ctx)
+	if uid == 0 {
+		return nil, code.New(401, "unauthorized")
+	}
+	if in.Page <= 0 {
+		in.Page = 1
+	}
+	if in.Size <= 0 {
+		in.Size = 10
+	}
+	items, total, err := dao.DefaultTaskDao.TaskClaimableQueryByUser(ctx, uid, in.Status, in.Page, in.Size)
+	if err != nil {
+		return nil, err
+	}
+	result.Total = total
+	result.Items = items
+	return result, nil
+}
+
 func (this *TaskService) TaskComplete(ctx context.Context, in *input.TaskCompleteInput) error {
 	return engine.DefaultExecutionEngine.TaskComplete(ctx, in.ID, in.AssigneeID, in.Remark)
+}
+
+func (this *TaskService) TaskClaim(ctx context.Context, in *input.TaskClaimInput) error {
+	uid := util.UIDWithContext(ctx)
+	if uid == 0 {
+		return code.New(401, "unauthorized")
+	}
+	return engine.DefaultExecutionEngine.TaskClaim(ctx, in.ID, uid)
+}
+
+func (this *TaskService) TaskCandidateList(ctx context.Context, in *input.TaskCandidateListInput) (interface{}, error) {
+	uid := util.UIDWithContext(ctx)
+	if uid == 0 {
+		return nil, code.New(401, "unauthorized")
+	}
+	task, err := dao.DefaultTaskDao.TaskGet(ctx, in.TaskID)
+	if err != nil {
+		return nil, err
+	}
+	if task == nil {
+		return nil, code.New(404, "task not found")
+	}
+	if task.AssigneeID != uid {
+		exists, existsErr := dao.DefaultTaskCandidateDao.TaskCandidateExists(ctx, task.ID, uid)
+		if existsErr != nil {
+			return nil, existsErr
+		}
+		if !exists {
+			return nil, code.New(403, "forbidden")
+		}
+	}
+
+	items, err := dao.DefaultTaskCandidateDao.TaskCandidateListByTaskID(ctx, in.TaskID)
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]uint64, 0, len(items))
+	for _, item := range items {
+		ids = append(ids, item.UserID)
+	}
+	users, err := dao.DefaultUserDao.UserListByIDs(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	userMap := make(map[uint64]*model.User, len(users))
+	for _, user := range users {
+		userMap[user.ID] = user
+	}
+	result := make([]*dto.TaskCandidate, 0, len(items))
+	for _, item := range items {
+		taskCandidate := &dto.TaskCandidate{TaskCandidate: item}
+		if user, ok := userMap[item.UserID]; ok {
+			taskCandidate.UserName = user.Name
+		}
+		result = append(result, taskCandidate)
+	}
+	return result, nil
 }
 
 func (this *TaskService) TaskSkip(ctx context.Context, in *input.TaskSkipInput) error {

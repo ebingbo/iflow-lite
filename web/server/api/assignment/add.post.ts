@@ -11,8 +11,8 @@ export default eventHandler(async (event) => {
     body: {
       process_id: body?.process_id,
       node_id: body?.node_id,
-      type: body?.type,
-      value: body?.value,
+      principal_type: body?.principal_type,
+      principal_id: body?.principal_id,
       priority: body?.priority,
       strategy: body?.strategy
     }

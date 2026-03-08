@@ -8,6 +8,7 @@ func Init(r *gin.Engine) {
 	DocsRouterInit(r)
 	MetricRouterInit(r)
 	UserRouterInit(r)
+	RoleRouterInit(r)
 	ProcessRouterInit(r)
 	ExecutionRouterInit(r)
 	AssignmentRouterInit(r)

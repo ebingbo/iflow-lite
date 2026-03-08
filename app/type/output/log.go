@@ -1,10 +1,10 @@
 package output
 
-import "iflow-lite/type/model"
+import "iflow-lite/type/dto"
 
 type (
 	LogQueryOutput struct {
-		Total int64        `json:"total"`
-		Items []*model.Log `json:"items"`
+		Total int64      `json:"total"`
+		Items []*dto.Log `json:"items"`
 	}
 )

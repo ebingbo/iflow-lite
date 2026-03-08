@@ -10,6 +10,9 @@ type Node struct {
 	Name        string    `gorm:"column:name;default:''" json:"name" example:"1"`
 	Code        string    `gorm:"column:code;default:'';unique" json:"code" example:"1"`
 	Type        string    `gorm:"column:type;default:'start'" json:"type" example:"start"`
+	AssignMode  string    `gorm:"column:assign_mode;default:'single'" json:"assign_mode" example:"single"`
+	X           int       `gorm:"column:x;default:0" json:"x" example:"80"`
+	Y           int       `gorm:"column:y;default:0" json:"y" example:"80"`
 	Description string    `gorm:"column:description;default:''" json:"description" example:"1"`
 	CreatedBy   uint64    `gorm:"column:created_by;default:0" json:"created_by" example:"1"`
 	UpdatedBy   uint64    `gorm:"column:updated_by;default:0" json:"updated_by" example:"1"`

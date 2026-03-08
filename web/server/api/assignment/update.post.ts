@@ -10,8 +10,8 @@ export default eventHandler(async (event) => {
     method: 'POST',
     body: {
       id: body?.id,
-      type: body?.type,
-      value: body?.value,
+      principal_type: body?.principal_type,
+      principal_id: body?.principal_id,
       priority: body?.priority,
       strategy: body?.strategy
     }

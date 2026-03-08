@@ -41,13 +41,13 @@ func (builder *AssignmentBuilder) NodeCode(nodeCode string) *AssignmentBuilder {
 	return builder
 }
 
-func (builder *AssignmentBuilder) Type(typeStr string) *AssignmentBuilder {
-	builder.item.Type = typeStr
+func (builder *AssignmentBuilder) PrincipalType(principalType string) *AssignmentBuilder {
+	builder.item.PrincipalType = principalType
 	return builder
 }
 
-func (builder *AssignmentBuilder) Value(value string) *AssignmentBuilder {
-	builder.item.Value = value
+func (builder *AssignmentBuilder) PrincipalID(principalID uint64) *AssignmentBuilder {
+	builder.item.PrincipalID = principalID
 	return builder
 }
 

@@ -66,7 +66,7 @@ func (*AssignmentDao) AssignmentList(ctx context.Context, cond map[string]interf
 
 func (*AssignmentDao) AssignmentListWithTransaction(ctx context.Context, tx *gorm.DB, cond map[string]interface{}) ([]*model.Assignment, error) {
 	var items []*model.Assignment
-	if err := tx.Where(cond).Find(&items).Error; err != nil {
+	if err := tx.WithContext(ctx).Where(cond).Order("priority ASC").Order("id ASC").Find(&items).Error; err != nil {
 		logger.ServiceLogger.WithContext(ctx).Errorf("assignment list with transaction error: %+v", err)
 		return nil, err
 	}

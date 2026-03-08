@@ -1,5 +1,3 @@
-import type { AssignType } from '~/types/assignment'
-
 export type NodeType = 'start' | 'end' | 'user_task' | 'join'
 
 export interface Node {
@@ -10,6 +8,7 @@ export interface Node {
   name: string
   code: string
   type: string
+  assign_mode?: 'single' | 'candidate' | 'multi_instance'
   description: string | null
   created_by: number
   created_by_name: string
@@ -19,8 +18,6 @@ export interface Node {
   updated_at: string
   x: number
   y: number
-  assignType: AssignType
-  assignTo: string[]
 }
 
 export interface NodeTypeConfig {
@@ -71,11 +68,17 @@ export interface NodeAddBody {
   name: string
   code: string
   type: string
+  assign_mode?: 'single' | 'candidate' | 'multi_instance'
+  x?: number
+  y?: number
   description: string
 }
 
 export interface NodeUpdateBody {
   id: number
   tag: string
+  assign_mode?: 'single' | 'candidate' | 'multi_instance'
+  x?: number
+  y?: number
   description: string
 }
