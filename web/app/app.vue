@@ -10,7 +10,10 @@ useHead({
     { key: 'theme-color', name: 'theme-color', content: color }
   ],
   link: [
-    { rel: 'icon', href: '/favicon.ico' }
+    // 优先使用 SVG，现代浏览器会选它（矢量、体积小）
+    { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg?v=1' },
+    // ICO 作为回退（旧浏览器/部分场景）
+    { rel: 'icon', href: '/favicon.ico?v=2' }
   ],
   htmlAttrs: {
     lang: 'en'
