@@ -561,10 +561,10 @@ onMounted(() => {
                     <span class="text-xs text-muted">{{ log.created_at }}</span>
                   </div>
                   <p
-                    v-if="log.assignee_id"
+                    v-if="log.assignee_name"
                     class="mt-1 text-xs text-muted"
                   >
-                    执行人: {{ log.assignee_name || log.assignee_id }}
+                    执行人: {{ log.assignee_name }}
                   </p>
                   <p
                     v-if="log.remark"

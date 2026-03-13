@@ -45,6 +45,34 @@ func UserAdd(ctx *gin.Context) {
 	http.JsonResponse(ctx, result)
 }
 
+func UserQuery(ctx *gin.Context) {
+	var in input.UserQueryInput
+	if err := ctx.ShouldBindJSON(&in); err != nil {
+		http.JsonResponse(ctx, err)
+		return
+	}
+	result, err := service.DefaultUserService.UserQuery(ctx.Request.Context(), &in)
+	if err != nil {
+		http.JsonResponse(ctx, err)
+		return
+	}
+	http.JsonResponse(ctx, result)
+}
+
+func UserStatusUpdate(ctx *gin.Context) {
+	var in input.UserStatusUpdateInput
+	if err := ctx.ShouldBindJSON(&in); err != nil {
+		http.JsonResponse(ctx, err)
+		return
+	}
+	result, err := service.DefaultUserService.UserStatusUpdate(ctx.Request.Context(), &in)
+	if err != nil {
+		http.JsonResponse(ctx, err)
+		return
+	}
+	http.JsonResponse(ctx, result)
+}
+
 func UserLogin(ctx *gin.Context) {
 	var in input.UserLoginInput
 	if err := ctx.ShouldBindJSON(&in); err != nil {
@@ -66,6 +94,34 @@ func UserList(ctx *gin.Context) {
 		return
 	}
 	result, err := service.DefaultUserService.UserList(ctx.Request.Context(), &in)
+	if err != nil {
+		http.JsonResponse(ctx, err)
+		return
+	}
+	http.JsonResponse(ctx, result)
+}
+
+func UserRoleList(ctx *gin.Context) {
+	var in input.UserRoleListInput
+	if err := ctx.ShouldBindJSON(&in); err != nil {
+		http.JsonResponse(ctx, err)
+		return
+	}
+	result, err := service.DefaultUserService.UserRoleList(ctx.Request.Context(), &in)
+	if err != nil {
+		http.JsonResponse(ctx, err)
+		return
+	}
+	http.JsonResponse(ctx, result)
+}
+
+func UserRoleUpdate(ctx *gin.Context) {
+	var in input.UserRoleUpdateInput
+	if err := ctx.ShouldBindJSON(&in); err != nil {
+		http.JsonResponse(ctx, err)
+		return
+	}
+	result, err := service.DefaultUserService.UserRoleUpdate(ctx.Request.Context(), &in)
 	if err != nil {
 		http.JsonResponse(ctx, err)
 		return

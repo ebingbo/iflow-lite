@@ -16,6 +16,17 @@ type (
 		Name   string `form:"name" json:"name" example:"bill"`
 		Status *uint8 `form:"status" json:"status" example:"1"`
 	}
+	UserStatusUpdateInput struct {
+		ID     uint64 `json:"id" binding:"required"`
+		Status uint8  `json:"status" binding:"required"`
+	}
+	UserRoleListInput struct {
+		UserID uint64 `json:"user_id" binding:"required"`
+	}
+	UserRoleUpdateInput struct {
+		UserID  uint64   `json:"user_id" binding:"required"`
+		RoleIDs []uint64 `json:"role_ids"`
+	}
 	UserLoginInput struct {
 		Email    string `json:"email" form:"email" binding:"required" example:"bill@126.com"`
 		Password string `json:"password" form:"password" binding:"required" example:"123456"`

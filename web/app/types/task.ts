@@ -8,6 +8,7 @@ export interface Task {
   node_code: string
   node_name: string
   assignee_id: number
+  assignee_name?: string
   status: 'pending' | 'running' | 'completed' | 'skipped'
   started_at: string | null
   claimed_at: string | null
@@ -90,7 +91,8 @@ export interface TaskLog {
 export interface TaskLogQueryBody {
   page: number
   size: number
-  task_id: number
+  task_id?: number
+  execution_id?: number
 }
 
 export interface TaskLogQueryData {

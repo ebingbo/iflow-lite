@@ -13,6 +13,7 @@ import (
 	"iflow-lite/type/dto"
 	"iflow-lite/type/input"
 	"iflow-lite/type/model"
+	"iflow-lite/type/output"
 
 	"golang.org/x/crypto/bcrypt"
 )
@@ -51,6 +52,70 @@ func (this *UserService) UserAdd(ctx context.Context, in *input.UserAddInput) (i
 		return nil, err
 	}
 	return m, nil
+}
+
+func (this *UserService) UserQuery(ctx context.Context, in *input.UserQueryInput) (interface{}, error) {
+	result := new(output.UserQueryOutput)
+	if in.Page <= 0 {
+		in.Page = 1
+	}
+	if in.Size <= 0 {
+		in.Size = 10
+	}
+	items, total, err := dao.DefaultUserDao.UserQuery(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+	result.Total = total
+	result.Items = make([]*dto.User, 0, len(items))
+	for _, item := range items {
+		result.Items = append(result.Items, &dto.User{
+			ID:        item.ID,
+			Name:      item.Name,
+			Email:     item.Email,
+			Status:    item.Status,
+			CreatedAt: item.CreatedAt,
+			UpdatedAt: item.UpdatedAt,
+		})
+	}
+	return result, nil
+}
+
+func (this *UserService) UserStatusUpdate(ctx context.Context, in *input.UserStatusUpdateInput) (interface{}, error) {
+	user, err := dao.DefaultUserDao.UserGet(ctx, in.ID)
+	if err != nil {
+		return nil, err
+	}
+	if user == nil {
+		return nil, code.New(404, "user not found")
+	}
+	status := in.Status
+	if status != 0 && status != 1 {
+		return nil, code.New(400, "invalid status")
+	}
+	user.Status = &status
+	if err := dao.DefaultUserDao.UserUpdate(ctx, user); err != nil {
+		return nil, err
+	}
+	return user, nil
+}
+
+func (this *UserService) UserRoleList(ctx context.Context, in *input.UserRoleListInput) (interface{}, error) {
+	return dao.DefaultUserRoleDao.UserRoleListByUserID(ctx, in.UserID)
+}
+
+func (this *UserService) UserRoleUpdate(ctx context.Context, in *input.UserRoleUpdateInput) (interface{}, error) {
+	user, err := dao.DefaultUserDao.UserGet(ctx, in.UserID)
+	if err != nil {
+		return nil, err
+	}
+	if user == nil {
+		return nil, code.New(404, "user not found")
+	}
+	if err := dao.DefaultUserRoleDao.UserRoleReplace(ctx, in.UserID, in.RoleIDs); err != nil {
+		return nil, err
+	}
+	return nil, nil
 }
 
 func (this *UserService) UserLogin(ctx context.Context, in *input.UserLoginInput) (interface{}, error) {

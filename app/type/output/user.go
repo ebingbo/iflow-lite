@@ -3,8 +3,8 @@ package output
 import "iflow-lite/type/dto"
 
 type (
-	TaskQueryOutput struct {
+	UserQueryOutput struct {
 		Total int64       `json:"total"`
-		Items []*dto.Task `json:"items"`
+		Items []*dto.User `json:"items"`
 	}
 )

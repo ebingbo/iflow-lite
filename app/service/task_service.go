@@ -97,8 +97,44 @@ func (this *TaskService) TaskQuery(ctx context.Context, in *input.TaskQueryInput
 		return nil, err
 	}
 
+	ids := make([]uint64, 0, len(items))
+	seen := make(map[uint64]struct{}, len(items))
+	for _, item := range items {
+		if item.AssigneeID == 0 {
+			continue
+		}
+		if _, ok := seen[item.AssigneeID]; ok {
+			continue
+		}
+		seen[item.AssigneeID] = struct{}{}
+		ids = append(ids, item.AssigneeID)
+	}
+
+	userMap := map[uint64]*model.User{}
+	if len(ids) > 0 {
+		users, userErr := dao.DefaultUserDao.UserListByIDs(ctx, ids)
+		if userErr != nil {
+			return nil, userErr
+		}
+		userMap = make(map[uint64]*model.User, len(users))
+		for _, user := range users {
+			userMap[user.ID] = user
+		}
+	}
+
+	taskItems := make([]*dto.Task, 0, len(items))
+	for _, item := range items {
+		taskItem := &dto.Task{Task: item}
+		if item.AssigneeID > 0 {
+			if user, ok := userMap[item.AssigneeID]; ok {
+				taskItem.AssigneeName = user.Name
+			}
+		}
+		taskItems = append(taskItems, taskItem)
+	}
+
 	result.Total = total
-	result.Items = items
+	result.Items = taskItems
 	return result, nil
 }
 
@@ -118,8 +154,45 @@ func (this *TaskService) TaskClaimableQuery(ctx context.Context, in *input.TaskC
 	if err != nil {
 		return nil, err
 	}
+
+	ids := make([]uint64, 0, len(items))
+	seen := make(map[uint64]struct{}, len(items))
+	for _, item := range items {
+		if item.AssigneeID == 0 {
+			continue
+		}
+		if _, ok := seen[item.AssigneeID]; ok {
+			continue
+		}
+		seen[item.AssigneeID] = struct{}{}
+		ids = append(ids, item.AssigneeID)
+	}
+
+	userMap := map[uint64]*model.User{}
+	if len(ids) > 0 {
+		users, userErr := dao.DefaultUserDao.UserListByIDs(ctx, ids)
+		if userErr != nil {
+			return nil, userErr
+		}
+		userMap = make(map[uint64]*model.User, len(users))
+		for _, user := range users {
+			userMap[user.ID] = user
+		}
+	}
+
+	taskItems := make([]*dto.Task, 0, len(items))
+	for _, item := range items {
+		taskItem := &dto.Task{Task: item}
+		if item.AssigneeID > 0 {
+			if user, ok := userMap[item.AssigneeID]; ok {
+				taskItem.AssigneeName = user.Name
+			}
+		}
+		taskItems = append(taskItems, taskItem)
+	}
+
 	result.Total = total
-	result.Items = items
+	result.Items = taskItems
 	return result, nil
 }
 

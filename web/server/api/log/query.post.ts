@@ -11,7 +11,8 @@ export default eventHandler(async (event) => {
     body: {
       page: body?.page,
       size: body?.size,
-      task_id: body?.task_id
+      task_id: body?.task_id,
+      execution_id: body?.execution_id
     }
   })
 

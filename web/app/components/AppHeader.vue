@@ -44,11 +44,11 @@ const consoleItems = computed(() => [
     children: [
       {
         label: '用户管理',
-        to: '/org/users'
+        to: '/user'
       },
       {
         label: '角色管理',
-        to: '/org/roles'
+        to: '/role'
       }
     ]
   },
